@@ -8,7 +8,7 @@ if T.TYPE_CHECKING:
 
 
 class SourcePort:
-    def __get__(self, obj: "Channel", objtype):
+    def __get__(self, obj: "Channel", objtype) -> T.Optional["OutputPort"]:
         return obj._source
 
     def __set__(self, obj: "Channel", value: T.Optional["OutputPort"]):
@@ -18,7 +18,7 @@ class SourcePort:
 
 
 class TargetPort:
-    def __get__(self, obj: "Channel", objtype):
+    def __get__(self, obj: "Channel", objtype) -> T.Optional["InputPort"]:
         return obj._target
 
     def __set__(self, obj: "Channel", value: T.Optional["InputPort"]):

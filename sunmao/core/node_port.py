@@ -1,4 +1,5 @@
 import typing as T
+import asyncio
 from dataclasses import dataclass
 
 
@@ -53,10 +54,6 @@ class OutputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
 
-    async def put_val(self, val):
-        for ch in self.channels:
-            await ch.put_val(val)
-
     def connect_channel(self, channel: "Channel"):
         channel.source_port = self
         return super().connect_channel(channel)
@@ -64,6 +61,15 @@ class OutputPort(NodePort):
     def disconnect_channel(self, channel: "Channel"):
         channel.source_port = None
         return super().disconnect_channel(channel)
+
+    async def activate_successors(self):
+        successor_calls = []
+        for ch in self.channels:
+            target_port = ch.target_port
+            if target_port:
+                call = target_port.node.run()
+                successor_calls.append(call)
+        await asyncio.gather(*successor_calls)
 
 
 class CheckError(Exception):
@@ -151,6 +157,12 @@ class OutputDataPort(OutputPort, DataPort):
             data_type: type, data_range: T.Optional[object]) -> None:
         OutputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, data_type, data_range)
+
+    async def put_val(self, val):
+        routines = []
+        for ch in self.channels:
+            routines.append(ch.put_val(val))
+        await asyncio.gather(*routines)
 
 
 @dataclass

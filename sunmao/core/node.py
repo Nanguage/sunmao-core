@@ -1,7 +1,7 @@
 import typing as T
 import asyncio
 
-from .node_port import PortBluePrint
+from .node_port import PortBluePrint, OutputDataPort
 from .channel import Channel
 
 
@@ -30,7 +30,18 @@ class Node(object):
 
     async def push_output(self, idx: int, val: T.Any):
         port = self.output_ports[idx]
-        await port.put_val(val)
+        if isinstance(port, OutputDataPort):
+            await port.put_val(val)
+        else:
+            raise TypeError(
+                f"port of node {self}(order: {idx}): "
+                f"{port} is not OutputDataPort")
+
+    async def activate_all_ports(self):
+        calls = []
+        for port in self.output_ports:
+            calls.append(port.activate_successors())
+        await asyncio.gather(*calls)
 
     async def run(self):
         pass
@@ -72,3 +83,4 @@ class ComputeNode(Node):
             r = self.push_output(0, res)
             routines.append(r)
         await asyncio.gather(*routines)
+        await self.activate_all_ports()

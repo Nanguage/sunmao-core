@@ -1,3 +1,4 @@
+import pytest
 from sunmao.core.node import ComputeNode
 from sunmao.core.node_port import *
 from sunmao.core.channel import Channel
@@ -9,7 +10,13 @@ def test_port_blue_print():
     assert isinstance(bp1.to_input_port(None), InputDataPort)
 
 
+node_defs = {}
+
+
+@pytest.mark.order(0)
 def test_node_def():
+    global node_defs
+
     class Add(ComputeNode):
         init_input_ports = [
             PortBluePrint("a", data_type=int),
@@ -23,6 +30,8 @@ def test_node_def():
         def func(a: int, b: int) -> int:
             return a + b
 
+    node_defs['Add'] = Add
+
     class Square(ComputeNode):
         init_input_ports = [
             PortBluePrint("a", data_type=int)
@@ -34,17 +43,16 @@ def test_node_def():
         def func(a: int) -> int:
             return a * a
 
-    node_defs = {
-        'Add': Add,
-        'Square': Square
-    }
+    node_defs['Square'] = Square
+
     return node_defs
 
 
 def test_one_node_run():
-    node_defs = test_node_def()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     Add = node_defs['Add']
-    add_node = Add()
+    add_node: ComputeNode = Add()
     ch1 = Channel()
     ch2 = Channel()
     ch3 = Channel()
@@ -67,4 +75,26 @@ def test_one_node_run():
 
 
 def test_two_node_run():
-    pass
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    Add, Square = node_defs['Add'], node_defs['Square']
+    add: ComputeNode = Add()
+    sq: ComputeNode = Square()
+    ch1 = Channel()
+    ch2 = Channel()
+    ch3 = Channel()
+    # build call graph
+    ch1.connect_with_node(add, 0)
+    ch2.connect_with_node(add, 1)
+    add.connect_with(sq, 0, 0)
+    sq.connect_channel(0, ch3)
+    # put data and run
+    async def run():
+        await asyncio.gather(
+            ch1.put_val(1),
+            ch2.put_val(2),
+        )
+        await add.run()
+        res = await ch3.get_val()
+        assert res == 9
+    asyncio.run(run())
