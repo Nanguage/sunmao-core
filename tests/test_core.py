@@ -2,6 +2,7 @@ import pytest
 from sunmao.core.node import ComputeNode
 from sunmao.core.node_port import PortBluePrint
 from sunmao.core.base import TypeCheckError, RangeCheckError
+from sunmao.core.connections import Connection
 
 
 node_defs = {}
@@ -24,12 +25,25 @@ def test_node_def():
         def func(a: int, b: int) -> int:
             return a + b
 
+    class SquareNode(ComputeNode):
+        init_input_ports = [
+            PortBluePrint("a")
+        ]
+        init_output_ports = [
+            PortBluePrint("res")
+        ]
+
+        @staticmethod
+        def func(a):
+            return a**2
+
     node_defs['add'] = AddNode
+    node_defs['square'] = SquareNode
 
 
 def test_one_node_run():
-    Add: ComputeNode = node_defs['add']
-    add = Add()
+    Add = node_defs['add']
+    add: ComputeNode = Add()
     assert add(1, 2) == 3
     with pytest.raises(TypeCheckError):
         add(1.0, 2)
@@ -37,3 +51,40 @@ def test_one_node_run():
         add(1, 101)
     with pytest.raises(RangeCheckError):
         add(100, 100)
+
+
+def test_conn_in_op():
+    Add = node_defs['add']
+    add1: ComputeNode = Add()
+    add2: ComputeNode = Add()
+    conns = [
+        Connection(add1.output_ports[0], add2.input_ports[0]),
+        Connection(add1.output_ports[0], add2.input_ports[1]),
+    ]
+    conn1 = Connection(add1.output_ports[0], add2.input_ports[0])
+    assert conn1 in conns
+    conns.remove(conn1)
+    assert len(conns) == 1
+
+
+def test_node_connect():
+    Add = node_defs['add']
+    add0: ComputeNode = Add()
+    add1: ComputeNode = Add()
+    add2: ComputeNode = Add()
+    add0.connect_with(add2, 0, 0)
+    add1.connect_with(add2, 0, 0)
+    add1.connect_with(add2, 0, 0)  # repeat connect
+    add1.connect_with(add2, 0, 1)
+    assert len(add1.output_ports[0].connections) == 2
+    assert len(add2.input_ports[0].connections) == 1
+    add1(1, 2)
+    assert add2.output_ports[0].get_cache() == 6
+    add0.output_ports[0].disconnect(add2.input_ports[0])
+    Square = node_defs['square']
+    sq1: ComputeNode = Square()
+    sq2: ComputeNode = Square()
+    # chain connect
+    add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
+    add0(1, 1)
+    assert sq2.output_ports[0].get_cache() == 16

@@ -54,6 +54,14 @@ class Node(SunmaoObj):
     def run(self, *args):
         pass
 
+    def connect_with(
+            self, other: "Node",
+            self_port_idx: int, other_port_idx: int) -> "Node":
+        out_port = self.output_ports[self_port_idx]
+        in_port = other.input_ports[other_port_idx]
+        out_port.connect_with(in_port)
+        return other
+
 
 class ComputeNode(Node):
 

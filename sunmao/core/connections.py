@@ -12,3 +12,6 @@ class Connection(SunmaoObj):
         super().__init__()
         self.source = source
         self.target = target
+
+    def __eq__(self, __o: "Connection") -> bool:
+        return (self.source == __o.source) and (self.target == __o.target)

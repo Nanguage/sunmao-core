@@ -3,11 +3,11 @@ from dataclasses import dataclass
 from collections import deque
 
 from .base import SunmaoObj, TypeCheckError, RangeCheckError
+from .connections import Connection
 
 
 if T.TYPE_CHECKING:
     from .node import Node
-    from .connections import Connection
 
 
 class ActivateSignal(SunmaoObj):
@@ -45,6 +45,23 @@ class OutputPort(NodePort):
         for conn in self.connections:
             conn.target.put_signal()
             conn.target.node.activate()
+
+    def connect_with(self, other: InputPort):
+        conn = Connection(self, other)
+        if not (conn in self.connections):
+            self.connections.append(conn)
+        # keep only one connection in InputPort
+        if len(other.connections) == 0:
+            other.connections.append(conn)
+        else:
+            other.connections[0] = conn
+
+    def disconnect(self, other: InputPort):
+        conn = Connection(self, other)
+        if conn in self.connections:
+            self.connections.remove(conn)
+        if conn in other.connections:
+            other.connections.remove(conn)
 
 
 class DataPort(NodePort):
@@ -141,6 +158,7 @@ class OutputDataPort(OutputPort, DataPort):
         self.set_cache(data)
         for conn in self.connections:
             conn.target.put_signal(data=data)
+            conn.target.node.activate()
 
 
 @dataclass
