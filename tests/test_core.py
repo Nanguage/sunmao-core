@@ -64,8 +64,6 @@ def test_one_node_run():
     asyncio.run(append_vals())
     ch1.connect_with_node(add_node, 0)
     ch2.connect_with_node(add_node, 1)
-    add_node.input_ports[0].connect_channel(ch1)
-    add_node.input_ports[1].connect_channel(ch2)
     add_node.connect_channel(0, ch3)
     asyncio.run(add_node.run())
     async def check_val():
@@ -98,3 +96,32 @@ def test_two_node_run():
         res = await ch3.get_val()
         assert res == 9
     asyncio.run(run())
+
+
+def test_executors():
+    Add = node_defs['Add']
+    add_node: ComputeNode = Add()
+    for executor in ("none", "process"):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        add_node.set_executor(executor)
+        ch1 = Channel()
+        ch2 = Channel()
+        ch3 = Channel()
+        ch1.connect_with_node(add_node, 0)
+        ch2.connect_with_node(add_node, 1)
+        add_node.connect_channel(0, ch3)
+        async def run():
+            await asyncio.gather(
+                ch1.put_val(1),
+                ch2.put_val(2),
+            )
+            await add_node.run()
+            res = await ch3.get_val()
+            assert res == 3
+        asyncio.run(run())
+
+
+if __name__ == "__main__":
+    test_node_def()
+    test_executors()

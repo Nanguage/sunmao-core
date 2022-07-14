@@ -3,6 +3,7 @@ import asyncio
 
 from .node_port import PortBluePrint, OutputDataPort
 from .channel import Channel
+from .executor import ProcessExecutor
 
 
 class Node(object):
@@ -61,6 +62,14 @@ class Node(object):
 
 
 class ComputeNode(Node):
+
+    valid_executors = ['none', 'thread', 'process']
+    default_executor = 'none'
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.set_executor(self.default_executor)
+
     @staticmethod
     def func(*args, **kwargs):
         pass
@@ -69,9 +78,18 @@ class ComputeNode(Node):
     def as_func(cls):
         return cls.func
 
+    def set_executor(self, executor: str):
+        assert executor in self.valid_executors
+        self.executor = executor
+
     async def run(self):
         inputs = await self.get_inputs()
-        res = self.func(*inputs)
+        if self.executor == "process":
+            e = ProcessExecutor(self.func, inputs)
+            res = await e.run()
+            print(res)
+        else:
+            res = self.func(*inputs)
         routines = []
         if isinstance(res, tuple):
             # multiple output value
