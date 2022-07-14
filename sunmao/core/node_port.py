@@ -1,87 +1,50 @@
 import typing as T
-import asyncio
 from dataclasses import dataclass
+from collections import deque
+
+from .base import SunmaoObj, TypeCheckError, RangeCheckError
 
 
 if T.TYPE_CHECKING:
     from .node import Node
-    from .channel import Channel
+    from .connections import Connection
 
 
-class NodePort():
+class ActivateSignal(SunmaoObj):
+    def __init__(self, data: T.Any = None):
+        self.data = data
+
+
+class NodePort(SunmaoObj):
     def __init__(self, name: str, node: "Node") -> None:
         self.name = name
         self.node = node
-        self.channels: T.List["Channel"] = []
-
-    def connect_channel(self, channel: "Channel"):
-        self.channels.append(channel)
-
-    def disconnect_channel(self, channel: "Channel"):
-        self.channels.remove(channel)
-
-    def disconnect_channel_by_idx(self, idx: int):
-        self.disconnect_channel(self.channels[idx])
+        self.connections: T.List["Connection"] = []
 
 
 class InputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
+        self.signal_buffer: "deque[ActivateSignal]" = deque([])
+
+    def put_signal(self, data=None):
+        self.signal_buffer.append(ActivateSignal(data))
+
+    def get_signal(self) -> ActivateSignal:
+        return self.signal_buffer.pop()
 
     def __str__(self):
         return f"<InputPort {self.name} on {self.node}>"
-
-    async def get_val(self) -> T.Any:
-        if len(self.channels) > 0:
-            val = await self.channels[0].get_val()
-            return val
-        else:
-            raise ValueError(f"{self} not has connected channel.")
-
-    def connect_channel(self, channel: "Channel"):
-        channel.target_port = self
-        if len(self.channels) > 0:
-            # only keep one connected channel
-            self.disconnect_channel_by_idx(0)
-        return super().connect_channel(channel)
-
-    def disconnect_channel(self, channel: "Channel"):
-        channel.target_port = None
-        return super().disconnect_channel(channel)
 
 
 class OutputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
 
-    def connect_channel(self, channel: "Channel"):
-        channel.source_port = self
-        return super().connect_channel(channel)
-
-    def disconnect_channel(self, channel: "Channel"):
-        channel.source_port = None
-        return super().disconnect_channel(channel)
-
-    async def activate_successors(self):
-        successor_calls = []
-        for ch in self.channels:
-            target_port = ch.target_port
-            if target_port:
-                call = target_port.node.run()
-                successor_calls.append(call)
-        await asyncio.gather(*successor_calls)
-
-
-class CheckError(Exception):
-    pass
-
-
-class TypeCheckError(CheckError):
-    pass
-
-
-class RangeCheckError(CheckError):
-    pass
+    def activate_successors(self):
+        for conn in self.connections:
+            conn.target.put_signal()
+            conn.target.node.activate()
 
 
 class DataPort(NodePort):
@@ -94,6 +57,13 @@ class DataPort(NodePort):
         NodePort.__init__(self, name, node)
         self.data_type = data_type
         self.data_range = data_range
+        self._cache = None
+
+    def set_cache(self, data: T.Any):
+        self._cache = data
+
+    def get_cache(self) -> T.Any:
+        return self._cache
 
     @classmethod
     def register_type_checker(
@@ -112,10 +82,11 @@ class DataPort(NodePort):
         if type_checker and (not type_checker(val)):
             raise TypeCheckError(
                 f"Expect type: {self.data_type}, got: {type(val)}")
-        range_checker = self._type_to_range_checker.get(self.data_type)
-        if range_checker and (not range_checker(self.data_range, val)):
-            raise RangeCheckError(
-                f"Expect range: {self.data_range}, got: {val}")
+        if self.data_range is not None:
+            range_checker = self._type_to_range_checker.get(self.data_type)
+            if range_checker and (not range_checker(val, self.data_range)):
+                raise RangeCheckError(
+                    f"Expect range: {self.data_range}, got: {val}")
 
 
 DataPort.register_type_checker(int)
@@ -150,6 +121,13 @@ class InputDataPort(InputPort, DataPort):
         InputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, data_type, data_range)
 
+    def get_data(self) -> T.Any:
+        sig = self.signal_buffer.pop()
+        data = sig.data
+        self.check(data)
+        self.set_cache(data)
+        return data
+
 
 class OutputDataPort(OutputPort, DataPort):
     def __init__(
@@ -158,11 +136,11 @@ class OutputDataPort(OutputPort, DataPort):
         OutputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, data_type, data_range)
 
-    async def put_val(self, val):
-        routines = []
-        for ch in self.channels:
-            routines.append(ch.put_val(val))
-        await asyncio.gather(*routines)
+    def push_data(self, data: T.Any):
+        self.check(data)
+        self.set_cache(data)
+        for conn in self.connections:
+            conn.target.put_signal(data=data)
 
 
 @dataclass

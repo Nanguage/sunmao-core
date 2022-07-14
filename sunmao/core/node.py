@@ -1,16 +1,21 @@
 import typing as T
-import asyncio
 
-from .node_port import PortBluePrint, OutputDataPort
-from .channel import Channel
-from .executor import ProcessExecutor
+from .base import SunmaoObj
+from .node_port import InputDataPort, InputExecPort
+from .node_port import OutputDataPort, OutputExecPort
 
 
-class Node(object):
-    init_input_ports: T.List[PortBluePrint] = []
-    init_output_ports: T.List[PortBluePrint] = []
+if T.TYPE_CHECKING:
+    from .node_port import PortBluePrint
+
+
+class Node(SunmaoObj):
+
+    init_input_ports: T.List["PortBluePrint"] = []
+    init_output_ports: T.List["PortBluePrint"] = []
 
     def __init__(self) -> None:
+        super().__init__()
         self.setup_ports()
 
     def setup_ports(self):
@@ -21,84 +26,73 @@ class Node(object):
             bp.to_output_port(self) for bp in self.init_output_ports
         ]
 
-    async def get_inputs(self) -> list:
-        inputs = []
-        for inp in self.input_ports:
-            in_val = inp.get_val()
-            inputs.append(in_val)
-        inputs = await asyncio.gather(*inputs)
-        return inputs
+    def activate(self):
+        signal_bufs = [inp.signal_buffer for inp in self.input_ports]
+        if all([len(buf) > 0 for buf in signal_bufs]):
+            args = self.consume_signal()
+            self.run(*args)
 
-    async def push_output(self, idx: int, val: T.Any):
+    def consume_signal(self) -> T.List[T.Any]:
+        args = []
+        for inp in self.input_ports:
+            if isinstance(inp, InputDataPort):
+                data = inp.get_data()
+                args.append(data)
+            else:
+                assert isinstance(inp, InputExecPort)
+                inp.get_signal()
+        return args
+
+    def set_output(self, idx: int, data: T.Any = None):
         port = self.output_ports[idx]
         if isinstance(port, OutputDataPort):
-            await port.put_val(val)
+            port.push_data(data)
         else:
-            raise TypeError(
-                f"port of node {self}(order: {idx}): "
-                f"{port} is not OutputDataPort")
+            assert isinstance(port, OutputExecPort)
+            port.activate_successors()
 
-    async def activate_all_ports(self):
-        calls = []
-        for port in self.output_ports:
-            calls.append(port.activate_successors())
-        await asyncio.gather(*calls)
-
-    async def run(self):
+    def run(self, *args):
         pass
-
-    def connect_with(
-            self, other: "Node",
-            self_port_idx: int, other_port_idx: int):
-        out = self.output_ports[self_port_idx]
-        in_ = other.input_ports[other_port_idx]
-        ch = Channel()
-        out.connect_channel(ch)
-        in_.connect_channel(ch)
-
-    def connect_channel(self, port_idx: int, channel: "Channel"):
-        port = self.output_ports[port_idx]
-        port.connect_channel(channel)
 
 
 class ComputeNode(Node):
 
-    valid_executors = ['none', 'thread', 'process']
-    default_executor = 'none'
+    def run(self, *args) -> T.Any:
+        res = self.func(*args)
+        self.set_outputs(res)
 
-    def __init__(self) -> None:
-        super().__init__()
-        self.set_executor(self.default_executor)
+    def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
+        if isinstance(res, tuple):
+            for i, r in enumerate(res):
+                self.set_output(i, r)
+        else:
+            self.set_output(0, res)
+
+    def get_output_caches(self) -> T.List[T.Any]:
+        res = []
+        for o in self.output_ports:
+            if isinstance(o, OutputDataPort):
+                r = o.get_cache()
+                res.append(r)
+        return res
+
+    def __call__(self, *args):
+        _args = list(args)
+        for inp in self.input_ports:
+            if isinstance(inp, InputDataPort):
+                a = _args.pop(0)
+                inp.put_signal(data=a)
+            else:
+                inp.put_signal()
+        self.activate()
+        caches = self.get_output_caches()
+        if len(caches) == 1:
+            return caches[0]
+        elif len(caches) > 1:
+            return tuple(caches)
+        else:
+            return None
 
     @staticmethod
-    def func(*args, **kwargs):
+    def func(*args):
         pass
-
-    @classmethod
-    def as_func(cls):
-        return cls.func
-
-    def set_executor(self, executor: str):
-        assert executor in self.valid_executors
-        self.executor = executor
-
-    async def run(self):
-        inputs = await self.get_inputs()
-        if self.executor == "process":
-            e = ProcessExecutor(self.func, inputs)
-            res = await e.run()
-            print(res)
-        else:
-            res = self.func(*inputs)
-        routines = []
-        if isinstance(res, tuple):
-            # multiple output value
-            for idx, r in enumerate(res):
-                r = self.push_output(idx, r)
-                routines.append(r)
-        else:
-            # single output value
-            r = self.push_output(0, res)
-            routines.append(r)
-        await asyncio.gather(*routines)
-        await self.activate_all_ports()
