@@ -88,3 +88,23 @@ def test_node_connect():
     add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
     add0(1, 1)
     assert sq2.output_ports[0].get_cache() == 16
+
+
+def test_exec_mode():
+    Add = node_defs['add']
+    add0: ComputeNode = Add()
+    add1: ComputeNode = Add()
+    add2: ComputeNode = Add()
+    add0.connect_with(add2, 0, 0)
+    add1.connect_with(add2, 0, 1)
+    add0(1, 1)
+    assert add2.output_ports[0].get_cache() is None
+    add1(1, 1)
+    assert add2.output_ports[0].get_cache() == 4
+    add0(2, 2)
+    assert add2.output_ports[0].get_cache() == 4
+    add2.set_exec_mode('any')
+    add0(2, 2)
+    assert add2.output_ports[0].get_cache() == 6
+    add2.clear_port_caches()
+    assert add2.output_ports[0].get_cache() is None

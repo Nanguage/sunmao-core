@@ -33,6 +33,10 @@ class InputPort(NodePort):
     def get_signal(self) -> ActivateSignal:
         return self.signal_buffer.pop()
 
+    def clear_signal_buffer(self):
+        while len(self.signal_buffer) > 0:
+            self.get_signal()
+
     def __str__(self):
         return f"<InputPort {self.name} on {self.node}>"
 
