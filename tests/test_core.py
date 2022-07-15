@@ -1,8 +1,10 @@
 import pytest
 from sunmao.core.node import ComputeNode
 from sunmao.core.node_port import PortBluePrint
-from sunmao.core.base import TypeCheckError, RangeCheckError
-from sunmao.core.connections import Connection
+from sunmao.core.error import TypeCheckError, RangeCheckError
+from sunmao.core.connection import Connection
+from sunmao.core.flow import Flow
+from sunmao.core.session import Session
 
 
 node_defs = {}
@@ -39,6 +41,26 @@ def test_node_def():
 
     node_defs['add'] = AddNode
     node_defs['square'] = SquareNode
+
+
+def test_flow():
+    Add = node_defs['add']
+    add: ComputeNode = Add()
+    assert isinstance(add.flow, Flow)
+    flow = Flow()
+    add1: ComputeNode = Add(flow=flow)
+    assert add1.flow is flow
+    add2: ComputeNode = Add()
+    assert add2.flow is flow
+
+
+def test_session():
+    sess = Session()
+    flow = Flow(session=sess)
+    assert flow.session is sess
+    sess1 = Session()
+    flow1 = Flow()
+    assert flow1.session is sess1
 
 
 def test_one_node_run():

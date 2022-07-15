@@ -1,7 +1,7 @@
 from enum import Enum
 import typing as T
 
-from .base import SunmaoObj
+from .base import FlowElement
 from .node_port import (
     InputDataPort, InputExecPort,
     OutputDataPort, OutputExecPort,
@@ -30,7 +30,7 @@ class ExecMode(Enum):
 ExecModeInput = T.Union[ExecMode, str]
 
 
-class Node(SunmaoObj):
+class Node(FlowElement):
 
     init_input_ports: T.List["PortBluePrint"] = []
     init_output_ports: T.List["PortBluePrint"] = []
@@ -39,9 +39,10 @@ class Node(SunmaoObj):
 
     def __init__(
             self,
-            exec_mode: ExecModeInput = default_exec_mode
+            exec_mode: ExecModeInput = default_exec_mode,
+            **kwargs
             ) -> None:
-        super().__init__()
+        super().__init__(**kwargs)
         self.setup_ports()
         self.set_exec_mode(exec_mode)
 

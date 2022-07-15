@@ -2,21 +2,28 @@ import typing as T
 from dataclasses import dataclass
 from collections import deque
 
-from .base import SunmaoObj, TypeCheckError, RangeCheckError
-from .connections import Connection
+from .base import FlowElement
+from .error import TypeCheckError, RangeCheckError
+from .connection import Connection
 
 
 if T.TYPE_CHECKING:
     from .node import Node
 
 
-class ActivateSignal(SunmaoObj):
-    def __init__(self, data: T.Any = None):
+class ActivateSignal(FlowElement):
+    def __init__(
+            self, data: T.Any = None,
+            **kwargs):
+        super().__init__(**kwargs)
         self.data = data
 
 
-class NodePort(SunmaoObj):
-    def __init__(self, name: str, node: "Node") -> None:
+class NodePort(FlowElement):
+    def __init__(
+            self, name: str, node: "Node",
+            **kwargs) -> None:
+        super().__init__(**kwargs)
         self.name = name
         self.node = node
         self.connections: T.List["Connection"] = []

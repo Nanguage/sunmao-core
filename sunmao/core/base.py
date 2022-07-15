@@ -1,19 +1,23 @@
+import typing as T
+import uuid
+
+
+if T.TYPE_CHECKING:
+    from .flow import Flow
+
 
 class SunmaoObj(object):
-    pass
+    def __new__(cls: "SunmaoObj", *args, **kwargs) -> "SunmaoObj":
+        obj = super().__new__(cls)
+        obj.id = str(uuid.uuid4())
+        return obj
 
 
-class SunmaoError(Exception):
-    pass
-
-
-class CheckError(SunmaoError):
-    pass
-
-
-class TypeCheckError(SunmaoError):
-    pass
-
-
-class RangeCheckError(SunmaoError):
-    pass
+class FlowElement(SunmaoObj):
+    def __init__(self, flow: T.Optional["Flow"] = None):
+        if flow is None:
+            from .session import get_current_session
+            sess = get_current_session()
+            flow = sess.current_flow
+        self.flow = flow
+        self.flow.add_obj(self)
