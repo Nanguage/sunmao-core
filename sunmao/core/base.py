@@ -4,6 +4,7 @@ import uuid
 
 if T.TYPE_CHECKING:
     from .flow import Flow
+    from .session import Session
 
 
 class SunmaoObj(object):
@@ -21,3 +22,7 @@ class FlowElement(SunmaoObj):
             flow = sess.current_flow
         self.flow = flow
         self.flow.add_obj(self)
+
+    @property
+    def session(self) -> "Session":
+        return self.flow.session

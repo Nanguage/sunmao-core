@@ -125,7 +125,7 @@ def test_exec_mode():
     assert add2.output_ports[0].get_cache() == 4
     add0(2, 2)
     assert add2.output_ports[0].get_cache() == 4
-    add2.set_exec_mode('any')
+    add2.exec_mode = 'any'
     add0(2, 2)
     assert add2.output_ports[0].get_cache() == 6
     add2.clear_port_caches()

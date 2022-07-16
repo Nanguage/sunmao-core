@@ -1,4 +1,3 @@
-from enum import Enum
 import typing as T
 
 from .base import FlowElement
@@ -7,27 +6,21 @@ from .node_port import (
     OutputDataPort, OutputExecPort,
     DataPort,
 )
+from .engine.job import LocalJob, ThreadJob
+from .utils import CheckAttrSet
 
 
 if T.TYPE_CHECKING:
     from .node_port import PortBluePrint
 
 
-class ExecMode(Enum):
-    ALL = 0
-    ANY = 1
+class ExecMode(CheckAttrSet):
+    valid = ("any", "all")
+    attr = "_exec_mode"
 
-    @classmethod
-    def from_str(cls, str_: str) -> "ExecMode":
-        if str_.lower() == "all":
-            return cls.ALL
-        elif str_.lower() == "any":
-            return cls.ANY
-        else:
-            raise ValueError
-
-
-ExecModeInput = T.Union[ExecMode, str]
+    def __set__(self, obj: "Node", value: str):
+        super().__set__(obj, value)
+        obj.clear_signal_buffers()
 
 
 class Node(FlowElement):
@@ -35,16 +28,17 @@ class Node(FlowElement):
     init_input_ports: T.List["PortBluePrint"] = []
     init_output_ports: T.List["PortBluePrint"] = []
 
-    default_exec_mode = ExecMode.ALL
+    default_exec_mode = "all"
+    exec_mode = ExecMode()
 
     def __init__(
             self,
-            exec_mode: ExecModeInput = default_exec_mode,
+            exec_mode: str = default_exec_mode,
             **kwargs
             ) -> None:
         super().__init__(**kwargs)
         self.setup_ports()
-        self.set_exec_mode(exec_mode)
+        self.exec_mode = exec_mode
 
     def setup_ports(self):
         self.input_ports = [
@@ -53,12 +47,6 @@ class Node(FlowElement):
         self.output_ports = [
             bp.to_output_port(self) for bp in self.init_output_ports
         ]
-
-    def set_exec_mode(self, exec_mode: ExecModeInput):
-        if isinstance(exec_mode, str):
-            exec_mode = ExecMode.from_str(exec_mode)
-        self.exec_mode = exec_mode
-        self.clear_signal_buffers()
 
     def clear_signal_buffers(self):
         for inp in self.input_ports:
@@ -73,7 +61,7 @@ class Node(FlowElement):
         bufs_has_signal = [
             len(inp.signal_buffer) > 0 for inp in self.input_ports
         ]
-        if self.exec_mode == ExecMode.ALL:
+        if self.exec_mode == "all":
             if all(bufs_has_signal):
                 args = self.consume_all_ports()
                 self.run(*args)
@@ -133,20 +121,6 @@ class Node(FlowElement):
         out_port.connect_with(in_port)
         return other
 
-
-class ComputeNode(Node):
-
-    def run(self, *args) -> T.Any:
-        res = self.func(*args)
-        self.set_outputs(res)
-
-    def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
-        if isinstance(res, tuple):
-            for i, r in enumerate(res):
-                self.set_output(i, r)
-        else:
-            self.set_output(0, res)
-
     def get_output_caches(self) -> T.List[T.Any]:
         res = []
         for o in self.output_ports:
@@ -156,10 +130,10 @@ class ComputeNode(Node):
         return res
 
     def __call__(self, *args):
-        _args = list(args)
+        _args = list(reversed(args))
         for inp in self.input_ports:
             if isinstance(inp, InputDataPort):
-                a = _args.pop(0)
+                a = _args.pop(-1)
                 inp.put_signal(data=a)
             else:
                 inp.put_signal()
@@ -171,6 +145,47 @@ class ComputeNode(Node):
             return tuple(caches)
         else:
             return None
+
+
+class NodeExecutor(CheckAttrSet):
+    valid = ("local", "thread", "process", "dask")
+    attr = "_executor"
+
+
+class ComputeNode(Node):
+
+    default_executor = "local"
+    executor = NodeExecutor()
+
+    def __init__(
+            self,
+            exec_mode: str = Node.default_exec_mode,
+            executor: str = default_executor,
+            **kwargs) -> None:
+        super().__init__(exec_mode, **kwargs)
+        self.executor = executor
+
+    def run(self, *args) -> T.Any:
+        if self.executor == "local":
+            job_cls = LocalJob
+        else:
+            job_cls = ThreadJob
+
+        def callback(res):
+            self.set_outputs(res)
+
+        def error_callback(e):
+            print(e)
+
+        job = job_cls(self.func, args, callback, error_callback)
+        self.session.engine.submit(job)
+
+    def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
+        if isinstance(res, tuple):
+            for i, r in enumerate(res):
+                self.set_output(i, r)
+        else:
+            self.set_output(0, res)
 
     @staticmethod
     def func(*args):
