@@ -1,10 +1,10 @@
 import typing as T
-from ..base import SunmaoObj
-from ..utils import CheckAttrSet
+from ...base import SunmaoObj
+from ...utils import CheckAttrSet
 
 
 if T.TYPE_CHECKING:
-    from .engine import Engine
+    from ..engine import Engine
 
 
 class JobStatus(CheckAttrSet):
@@ -43,7 +43,7 @@ class Job(SunmaoObj):
         return True
 
     def emit(self):
-        from .engine import Engine
+        from ..engine import Engine
         assert isinstance(self.engine, Engine)
         self.status = "running"
         self.engine.jobs.pending.pop(self.id)
@@ -80,7 +80,3 @@ class LocalJob(Job):
             self.on_failed(e)
         if success:
             self.on_done(res)
-
-
-class ThreadJob(Job):
-    pass

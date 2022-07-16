@@ -1,4 +1,6 @@
 import pytest
+import time
+
 from sunmao.core.node import ComputeNode
 from sunmao.core.node_port import PortBluePrint
 from sunmao.core.error import TypeCheckError, RangeCheckError
@@ -39,8 +41,15 @@ def test_node_def():
         def func(a):
             return a**2
 
+    class SleepSquareNode(SquareNode):
+        @staticmethod
+        def func(a):
+            time.sleep(1)
+            return a**2
+
     node_defs['add'] = AddNode
     node_defs['square'] = SquareNode
+    node_defs['sleep_square'] = SleepSquareNode
 
 
 def test_flow():
@@ -130,3 +139,24 @@ def test_exec_mode():
     assert add2.output_ports[0].get_cache() == 6
     add2.clear_port_caches()
     assert add2.output_ports[0].get_cache() is None
+
+
+def test_thread_executor():
+    sess = Session()
+    SleepSq = node_defs['sleep_square']
+    sq1: ComputeNode = SleepSq(executor="thread")
+    sq1(3)
+    sess.engine.wait()
+    assert sq1.output_ports[0].get_cache() == 9
+    Add = node_defs['add']
+    add: ComputeNode = Add(executor="thread")
+    sq2: ComputeNode = SleepSq(executor="thread")
+    sq1.connect_with(add, 0, 0)
+    sq2.connect_with(add, 0, 1)
+    t1 = time.time()
+    sq1(5)
+    sq2(5)
+    sess.engine.wait()
+    t2 = time.time()
+    assert (t2 - t1) < 2.0
+    assert add.output_ports[0].get_cache() == 50
