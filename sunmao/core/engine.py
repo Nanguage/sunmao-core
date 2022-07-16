@@ -3,7 +3,7 @@ import typing as T
 from dataclasses import dataclass
 import time
 
-from ..base import SunmaoObj
+from .base import SunmaoObj
 from .job import Job
 
 

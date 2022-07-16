@@ -6,7 +6,7 @@ from .node_port import (
     OutputDataPort, OutputExecPort,
     DataPort,
 )
-from .engine.job import LocalJob, ThreadJob
+from .job import LocalJob, ThreadJob
 from .utils import CheckAttrSet
 
 

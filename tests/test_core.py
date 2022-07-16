@@ -7,6 +7,7 @@ from sunmao.core.error import TypeCheckError, RangeCheckError
 from sunmao.core.connection import Connection
 from sunmao.core.flow import Flow
 from sunmao.core.session import Session
+from sunmao.core.engine import EngineSetting
 
 
 node_defs = {}
@@ -44,7 +45,7 @@ def test_node_def():
     class SleepSquareNode(SquareNode):
         @staticmethod
         def func(a):
-            time.sleep(1)
+            time.sleep(0.5)
             return a**2
 
     node_defs['add'] = AddNode
@@ -158,5 +159,23 @@ def test_thread_executor():
     sq2(5)
     sess.engine.wait()
     t2 = time.time()
-    assert (t2 - t1) < 2.0
+    assert (t2 - t1) < 1.0
+    assert add.output_ports[0].get_cache() == 50
+
+
+def test_thread_executor_resource_consume():
+    sess = Session(engine_setting=EngineSetting(max_threads=1))
+    SleepSq = node_defs['sleep_square']
+    sq1: ComputeNode = SleepSq(executor="thread")
+    Add = node_defs['add']
+    add: ComputeNode = Add(executor="thread")
+    sq2: ComputeNode = SleepSq(executor="thread")
+    sq1.connect_with(add, 0, 0)
+    sq2.connect_with(add, 0, 1)
+    t1 = time.time()
+    sq1(5)
+    sq2(5)
+    sess.engine.wait()
+    t2 = time.time()
+    assert (t2 - t1) > 1.0
     assert add.output_ports[0].get_cache() == 50

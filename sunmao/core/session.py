@@ -2,7 +2,7 @@ import typing as T
 from .base import SunmaoObj
 
 from .flow import Flow
-from .engine.engine import Engine, EngineSetting
+from .engine import Engine, EngineSetting
 
 
 _current_session: T.Optional["Session"] = None

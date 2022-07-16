@@ -1,6 +1,6 @@
 import typing as T
-from ...base import SunmaoObj
-from ...utils import CheckAttrSet
+from ..base import SunmaoObj
+from ..utils import CheckAttrSet
 
 
 if T.TYPE_CHECKING:
