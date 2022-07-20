@@ -179,3 +179,28 @@ def test_thread_executor_resource_consume():
     t2 = time.time()
     assert (t2 - t1) > 1.0
     assert add.output_ports[0].get_cache() == 50
+
+
+def test_process_executor():
+    sess = Session()
+    SleepSq = node_defs['sleep_square']
+    sq1: ComputeNode = SleepSq(executor="process")
+    sq1(3)
+    sess.engine.wait()
+    assert sq1.output_ports[0].get_cache() == 9
+
+
+def test_process_executor_resource_consume():
+    sess = Session(engine_setting=EngineSetting(max_processes=1))
+    SleepSq = node_defs['sleep_square']
+    sq1: ComputeNode = SleepSq(executor="process")
+    Add = node_defs['add']
+    add: ComputeNode = Add(executor="process")
+    sq2: ComputeNode = SleepSq(executor="process")
+    sq1.connect_with(add, 0, 0)
+    sq2.connect_with(add, 0, 1)
+    sq1(5)
+    assert sess.engine.process_count == 0
+    sq2(5)
+    sess.engine.wait()
+    assert add.output_ports[0].get_cache() == 50

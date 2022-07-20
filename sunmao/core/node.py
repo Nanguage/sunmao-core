@@ -6,7 +6,7 @@ from .node_port import (
     OutputDataPort, OutputExecPort,
     DataPort,
 )
-from .job import LocalJob, ThreadJob
+from .job import LocalJob, ThreadJob, ProcessJob
 from .utils import CheckAttrSet
 
 
@@ -168,8 +168,10 @@ class ComputeNode(Node):
     def run(self, *args) -> T.Any:
         if self.executor == "local":
             job_cls = LocalJob
-        else:
+        elif self.executor == "thread":
             job_cls = ThreadJob
+        else:
+            job_cls = ProcessJob
 
         def callback(res):
             self.set_outputs(res)

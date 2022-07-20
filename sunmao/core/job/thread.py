@@ -41,8 +41,8 @@ class ThreadJob(Job):
         return True
 
     def run(self):
-        self.thread = IThread(
+        self._thread = IThread(
             func=self.func, args=self.args,
             callback=self.on_done,
             error_callback=self.on_failed)
-        self.thread.start()
+        self._thread.start()
