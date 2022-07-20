@@ -21,3 +21,7 @@ class ProcessJob(Job):
             callback=self.on_done,
             error_callback=self.on_failed,
         )
+
+    def cancel_task(self):
+        self._pool.terminate()
+        del self._pool

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import time
 
 from .base import SunmaoObj
-from .job import Job
+from .job.base import Job, JobStatus
 
 
 @dataclass
@@ -17,11 +17,24 @@ JobStoreType = T.OrderedDict[str, Job]
 
 
 class Jobs:
+    types = JobStatus.valid
+
     def __init__(self):
         self.pending: JobStoreType = OrderedDict()
         self.running: JobStoreType = OrderedDict()
         self.done: JobStoreType = OrderedDict()
         self.failed: JobStoreType = OrderedDict()
+        self.cannceled: JobStoreType = OrderedDict()
+
+    def clear(self, types):
+        for tp in types:
+            self.__getattribute__(tp).clear()
+
+    def clear_non_active(self):
+        self.clear(("done", "failed", "cannceled"))
+
+    def clear_all(self):
+        self.clear(self.types)
 
 
 class Engine(SunmaoObj):

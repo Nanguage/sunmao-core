@@ -2,6 +2,11 @@ import typing as T
 
 from .base import Job
 from .utils import ThreadWithExc
+from ..error import SunmaoError
+
+
+class StopIThread(SunmaoError):
+    pass
 
 
 class IThread(ThreadWithExc):
@@ -22,6 +27,8 @@ class IThread(ThreadWithExc):
         try:
             res = self.func(*self.args)
             success = True
+        except StopIteration:
+            pass
         except Exception as e:
             self.error_callback(e)
         if success:
@@ -46,3 +53,11 @@ class ThreadJob(Job):
             callback=self.on_done,
             error_callback=self.on_failed)
         self._thread.start()
+
+    def cancel_task(self):
+        if self._thread.is_alive():
+            try:
+                self._thread.raiseExc(StopIteration)
+            except Exception:
+                pass
+        del self._thread

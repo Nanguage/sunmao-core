@@ -30,7 +30,7 @@ class ThreadWithExc(threading.Thread):
         thread, to get the identity of the thread represented by this
         instance.
         """
-        if not self.isAlive():
+        if not self.is_alive():
             raise threading.ThreadError("the thread is not active")
 
         # do we have it cached?

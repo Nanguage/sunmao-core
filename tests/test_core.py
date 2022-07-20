@@ -48,9 +48,16 @@ def test_node_def():
             time.sleep(0.5)
             return a**2
 
+    class LongSleepSquare(SquareNode):
+        @staticmethod
+        def func(a):
+            time.sleep(10)
+            return a**2
+
     node_defs['add'] = AddNode
     node_defs['square'] = SquareNode
     node_defs['sleep_square'] = SleepSquareNode
+    node_defs['long_sleep_square'] = LongSleepSquare
 
 
 def test_flow():
@@ -204,3 +211,24 @@ def test_process_executor_resource_consume():
     sq2(5)
     sess.engine.wait()
     assert add.output_ports[0].get_cache() == 50
+
+
+def test_job_cancel():
+    sess = Session()
+    LongSleepSq = node_defs['long_sleep_square']
+    sq1: ComputeNode = LongSleepSq(executor="thread")
+    sq1(3)
+    assert len(sess.engine.jobs.running) == 1
+    j = list(sess.engine.jobs.running.values())[0]
+    j.cancel()
+    assert len(sess.engine.jobs.running) == 0
+    assert j.status == "canceled"
+    # test process job cancel
+    sq1.executor = "process"
+    sq1(3)
+    assert len(sess.engine.jobs.running) == 1
+    time.sleep(0.1)
+    j = list(sess.engine.jobs.running.values())[0]
+    j.cancel()
+    assert len(sess.engine.jobs.running) == 0
+    assert j.status == "canceled"

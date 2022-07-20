@@ -8,7 +8,7 @@ if T.TYPE_CHECKING:
 
 
 class JobStatus(CheckAttrSet):
-    valid = ('pending', 'running', 'failed', 'done')
+    valid = ('pending', 'running', 'failed', 'done', 'canceled')
     attr = "_status"
 
 
@@ -67,6 +67,20 @@ class Job(SunmaoObj):
         self.engine.activate()
 
     def run(self):
+        pass
+
+    def cancel(self):
+        if self.status != "running":
+            return
+        try:
+            self.cancel_task()
+            self.engine.jobs.running.pop(self.id)
+            self.engine.jobs.cannceled[self.id] = self
+            self.status = "canceled"
+        except Exception:
+            pass
+
+    def cancel_task(self):
         pass
 
 
