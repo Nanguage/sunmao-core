@@ -17,7 +17,7 @@ JobStoreType = T.OrderedDict[str, Job]
 
 
 class Jobs:
-    types = JobStatus.valid
+    types = JobStatus.valid_range
 
     def __init__(self):
         self.pending: JobStoreType = OrderedDict()

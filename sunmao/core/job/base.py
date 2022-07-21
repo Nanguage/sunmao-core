@@ -1,20 +1,30 @@
 import typing as T
 from ..base import SunmaoObj
-from ..utils import CheckAttrSet
+from ..utils import CheckAttrRange, CheckAttrType
 
 
 if T.TYPE_CHECKING:
     from ..engine import Engine
 
 
-class JobStatus(CheckAttrSet):
-    valid = ('pending', 'running', 'failed', 'done', 'canceled')
+class JobStatus(CheckAttrRange):
+    valid_range = ('pending', 'running', 'failed', 'done', 'canceled')
     attr = "_status"
+
+
+def check_engine(obj) -> bool:
+    from ..engine import Engine
+    return isinstance(obj, Engine)
+
+
+class EngineAttr(CheckAttrType):
+    valid_type = (type(None), check_engine)
 
 
 class Job(SunmaoObj):
 
     status = JobStatus()
+    engine = EngineAttr()
 
     def __init__(
             self,
@@ -43,8 +53,6 @@ class Job(SunmaoObj):
         return True
 
     def emit(self):
-        from ..engine import Engine
-        assert isinstance(self.engine, Engine)
         self.status = "running"
         self.engine.jobs.pending.pop(self.id)
         self.engine.jobs.running[self.id] = self

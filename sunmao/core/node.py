@@ -7,15 +7,15 @@ from .node_port import (
     DataPort,
 )
 from .job import LocalJob, ThreadJob, ProcessJob
-from .utils import CheckAttrSet
+from .utils import CheckAttrRange
 
 
 if T.TYPE_CHECKING:
     from .node_port import PortBluePrint
 
 
-class ExecMode(CheckAttrSet):
-    valid = ("any", "all")
+class ExecMode(CheckAttrRange):
+    valid_range = ("any", "all")
     attr = "_exec_mode"
 
     def __set__(self, obj: "Node", value: str):
@@ -147,8 +147,8 @@ class Node(FlowElement):
             return None
 
 
-class NodeExecutor(CheckAttrSet):
-    valid = ("local", "thread", "process", "dask")
+class NodeExecutor(CheckAttrRange):
+    valid_range = ("local", "thread", "process", "dask")
     attr = "_executor"
 
 
