@@ -1,4 +1,5 @@
 import typing as T
+from .error import RangeCheckError, TypeCheckError
 
 
 class CheckAttrRange(object):
@@ -9,7 +10,11 @@ class CheckAttrRange(object):
         return getattr(obj, self.attr)
 
     def __set__(self, obj, value):
-        assert value in self.valid_range
+        if value not in self.valid_range:
+            raise RangeCheckError(
+                f"{obj}'s {type(self)} attr should be "
+                f"one of: {self.valid_range}"
+            )
         setattr(obj, self.attr, value)
 
 
@@ -33,5 +38,9 @@ class CheckAttrType(object):
                 passed = tp(value)
             check_passed.append(passed)
         is_valid_type = any(check_passed)
-        assert is_valid_type
+        if not is_valid_type:
+            raise TypeCheckError(
+                f"{obj}'s {type(self)} attr should in type: "
+                f"{self.valid_type}"
+            )
         setattr(obj, self.attr, value)

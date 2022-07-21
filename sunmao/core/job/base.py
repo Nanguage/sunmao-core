@@ -1,6 +1,6 @@
 import typing as T
 from ..base import SunmaoObj
-from ..utils import CheckAttrRange, CheckAttrType
+from ..utils import CheckAttrRange
 from ..error import SunmaoError
 
 
@@ -13,15 +13,6 @@ class JobStatus(CheckAttrRange):
     attr = "_status"
 
 
-def check_engine(obj) -> bool:
-    from ..engine import Engine
-    return isinstance(obj, Engine)
-
-
-class EngineAttr(CheckAttrType):
-    valid_type = (type(None), check_engine)
-
-
 class JobEmitError(SunmaoError):
     pass
 
@@ -29,7 +20,6 @@ class JobEmitError(SunmaoError):
 class Job(SunmaoObj):
 
     status = JobStatus()
-    engine = EngineAttr()
 
     def __init__(
             self,

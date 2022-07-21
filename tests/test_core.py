@@ -82,7 +82,7 @@ def test_session():
 
 def test_one_node_run():
     Add = node_defs['add']
-    add: ComputeNode = Add()
+    add: ComputeNode = Add(executor="local")
     assert add(1, 2) == 3
     with pytest.raises(TypeCheckError):
         add(1.0, 2)
@@ -108,9 +108,9 @@ def test_conn_in_op():
 
 def test_node_connect():
     Add = node_defs['add']
-    add0: ComputeNode = Add()
-    add1: ComputeNode = Add()
-    add2: ComputeNode = Add()
+    add0: ComputeNode = Add(executor="local")
+    add1: ComputeNode = Add(executor="local")
+    add2: ComputeNode = Add(executor="local")
     add0.connect_with(add2, 0, 0)
     add1.connect_with(add2, 0, 0)
     add1.connect_with(add2, 0, 0)  # repeat connect
@@ -121,8 +121,8 @@ def test_node_connect():
     assert add2.output_ports[0].get_cache() == 6
     add0.output_ports[0].disconnect(add2.input_ports[0])
     Square = node_defs['square']
-    sq1: ComputeNode = Square()
-    sq2: ComputeNode = Square()
+    sq1: ComputeNode = Square(executor="local")
+    sq2: ComputeNode = Square(executor="local")
     # chain connect
     add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
     add0(1, 1)
@@ -131,9 +131,9 @@ def test_node_connect():
 
 def test_exec_mode():
     Add = node_defs['add']
-    add0: ComputeNode = Add()
-    add1: ComputeNode = Add()
-    add2: ComputeNode = Add()
+    add0: ComputeNode = Add(executor="local")
+    add1: ComputeNode = Add(executor="local")
+    add2: ComputeNode = Add(executor="local")
     add0.connect_with(add2, 0, 0)
     add1.connect_with(add2, 0, 1)
     add0(1, 1)
@@ -247,3 +247,17 @@ def test_job_re_emit():
     j.emit()
     sess.engine.wait()
     assert sq1.output_ports[0].get_cache() == 9
+
+
+def test_attr_range():
+    sess = Session()
+    SleepSq = node_defs['sleep_square']
+    sq1: ComputeNode = SleepSq(executor="local")
+    with pytest.raises(RangeCheckError):
+        sq1.exec_mode = "aaa"
+    with pytest.raises(RangeCheckError):
+        sq1.executor = "aaa"
+    sq1(3)
+    j = list(sess.engine.jobs.done.values())[0]
+    with pytest.raises(RangeCheckError):
+        j.status = "aaaa"
