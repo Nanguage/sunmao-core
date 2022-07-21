@@ -232,3 +232,18 @@ def test_job_cancel():
     j.cancel()
     assert len(sess.engine.jobs.running) == 0
     assert j.status == "canceled"
+
+
+def test_job_re_emit():
+    sess = Session()
+    SleepSq = node_defs['sleep_square']
+    sq1: ComputeNode = SleepSq(executor="thread")
+    sq1(3)
+    sess.engine.wait()
+    assert sq1.output_ports[0].get_cache() == 9
+    sq1.clear_port_caches()
+    assert len(sess.engine.jobs.done) == 1
+    j = list(sess.engine.jobs.done.values())[0]
+    j.emit()
+    sess.engine.wait()
+    assert sq1.output_ports[0].get_cache() == 9

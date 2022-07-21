@@ -1,6 +1,7 @@
 import typing as T
 from ..base import SunmaoObj
 from ..utils import CheckAttrRange, CheckAttrType
+from ..error import SunmaoError
 
 
 if T.TYPE_CHECKING:
@@ -19,6 +20,10 @@ def check_engine(obj) -> bool:
 
 class EngineAttr(CheckAttrType):
     valid_type = (type(None), check_engine)
+
+
+class JobEmitError(SunmaoError):
+    pass
 
 
 class Job(SunmaoObj):
@@ -53,9 +58,13 @@ class Job(SunmaoObj):
         return True
 
     def emit(self):
-        self.status = "running"
-        self.engine.jobs.pending.pop(self.id)
+        _valid_status = ("pending", "canceled", "done", "failed")
+        if self.status not in _valid_status:
+            raise JobEmitError(
+                f"{self} is not in valid status({_valid_status})")
+        getattr(self.engine.jobs, self.status).pop(self.id)
         self.engine.jobs.running[self.id] = self
+        self.status = "running"
         self.run()
 
     def on_done(self, res):
