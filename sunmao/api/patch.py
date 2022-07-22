@@ -7,15 +7,15 @@ from ..core.node_port import NodePort, InputPort, OutputPort
 NodeOrInputPort = T.Union[Node, InputPort]
 
 
-def _port_connect_with(outp: OutputPort, other: NodeOrInputPort) -> Node:
+def _port_connect_with(outp: OutputPort, other: NodeOrInputPort) -> OutputPort:
     if isinstance(other, Node):
         inp = other.input_ports[0]
-        res = other
+        node = other
     else:
         inp = other
-        res = other.node
+        node = other.node
     outp.connect_with(inp)
-    return res
+    return node.output_ports[0]
 
 
 def patch_node():
@@ -37,7 +37,7 @@ def patch_node():
 
     Node.__getitem__ = _get_port_by_name
 
-    def _rshift_connect(self: Node, other: NodeOrInputPort) -> Node:
+    def _rshift_connect(self: Node, other: NodeOrInputPort) -> OutputPort:
         outp = self.output_ports[0]
         return _port_connect_with(outp, other)
 
@@ -45,7 +45,8 @@ def patch_node():
 
 
 def patch_node_port():
-    def _rshift_connect(self: OutputPort, other: NodeOrInputPort) -> Node:
+    def _rshift_connect(
+            self: OutputPort, other: NodeOrInputPort) -> OutputPort:
         return _port_connect_with(self, other)
 
     OutputPort.__rshift__ = _rshift_connect
