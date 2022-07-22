@@ -4,7 +4,6 @@ from .base import FlowElement
 from .node_port import (
     InputDataPort, InputExecPort,
     OutputDataPort, OutputExecPort,
-    DataPort,
 )
 from .job import LocalJob, ThreadJob, ProcessJob
 from .utils import CheckAttrRange
@@ -53,9 +52,9 @@ class Node(FlowElement):
             inp.clear_signal_buffer()
 
     def clear_port_caches(self):
-        for p in self.input_ports + self.output_ports:
-            if isinstance(p, DataPort):
-                p.set_cache(None)
+        for p in self.output_ports:
+            if isinstance(p, OutputDataPort):
+                p.clear_cache()
 
     def activate(self):
         bufs_has_signal = [
@@ -86,7 +85,9 @@ class Node(FlowElement):
 
     def consume_ports_with_cache(self) -> T.List[T.Any]:
         """Consume one signal of all ports.
-        If a InputDataPort not has signal, will replace with the cache value.
+        If a InputDataPort not has signal,
+        will replace with the predecessor's cache or
+        it's default value.
         """
         args = []
         for inp in self.input_ports:
@@ -94,7 +95,7 @@ class Node(FlowElement):
                 if len(inp.signal_buffer) > 0:
                     data = inp.get_data()
                 else:
-                    data = inp.get_cache()
+                    data = inp.fetch_missing()
                 args.append(data)
             else:
                 assert isinstance(inp, InputExecPort)
@@ -129,8 +130,25 @@ class Node(FlowElement):
                 res.append(r)
         return res
 
-    def __call__(self, *args):
-        _args = list(reversed(args))
+    def _get_call_args(self, *args, **kwargs):
+        name_to_idx = {}
+        _args = []
+        idx = 0
+        for inp in self.input_ports:
+            if not isinstance(inp, InputDataPort):
+                continue
+            name_to_idx[inp.name] = idx
+            _args.append(inp.default)
+            idx += 1
+        for idx, a in enumerate(args):
+            _args[idx] = a
+        for k, a in kwargs.items():
+            idx = name_to_idx[k]
+            _args[idx] = a
+        return _args
+
+    def __call__(self, *args, **kwargs):
+        _args = list(reversed(self._get_call_args(*args, **kwargs)))
         for inp in self.input_ports:
             if isinstance(inp, InputDataPort):
                 a = _args.pop(-1)

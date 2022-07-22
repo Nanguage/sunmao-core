@@ -30,6 +30,14 @@ def test_node_def():
         def func(a: int, b: int) -> int:
             return a + b
 
+    class AddNodeDefault(AddNode):
+        init_input_ports = [
+            PortBluePrint("a", data_type=int, data_range=(0, 100)),
+            PortBluePrint(
+                "b", data_type=int, data_range=(0, 100), 
+                data_default=10),
+        ]
+
     class SquareNode(ComputeNode):
         init_input_ports = [
             PortBluePrint("a")
@@ -55,6 +63,7 @@ def test_node_def():
             return a**2
 
     node_defs['add'] = AddNode
+    node_defs['add_with_default'] = AddNodeDefault
     node_defs['square'] = SquareNode
     node_defs['sleep_square'] = SleepSquareNode
     node_defs['long_sleep_square'] = LongSleepSquare
@@ -118,7 +127,7 @@ def test_node_connect():
     assert len(add1.output_ports[0].connections) == 2
     assert len(add2.input_ports[0].connections) == 1
     add1(1, 2)
-    assert add2.output_ports[0].get_cache() == 6
+    assert add2.output_ports[0].cache == 6
     add0.output_ports[0].disconnect(add2.input_ports[0])
     Square = node_defs['square']
     sq1: ComputeNode = Square(executor="local")
@@ -126,7 +135,7 @@ def test_node_connect():
     # chain connect
     add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
     add0(1, 1)
-    assert sq2.output_ports[0].get_cache() == 16
+    assert sq2.output_ports[0].cache == 16
 
 
 def test_exec_mode():
@@ -137,16 +146,32 @@ def test_exec_mode():
     add0.connect_with(add2, 0, 0)
     add1.connect_with(add2, 0, 1)
     add0(1, 1)
-    assert add2.output_ports[0].get_cache() is None
+    assert add2.output_ports[0].cache is None
     add1(1, 1)
-    assert add2.output_ports[0].get_cache() == 4
+    assert add2.output_ports[0].cache == 4
     add0(2, 2)
-    assert add2.output_ports[0].get_cache() == 4
+    assert add2.output_ports[0].cache == 4
     add2.exec_mode = 'any'
     add0(2, 2)
-    assert add2.output_ports[0].get_cache() == 6
+    assert add2.output_ports[0].cache == 6
     add2.clear_port_caches()
-    assert add2.output_ports[0].get_cache() is None
+    assert add2.output_ports[0].cache is None
+
+
+def test_port_default():
+    AddDefault = node_defs['add_with_default']
+    add1: ComputeNode = AddDefault(executor="local")
+    add1(1)
+    assert add1.output_ports[0].cache == 11
+    add1(a=5)
+    assert add1.output_ports[0].cache == 15
+    add1(b=5, a=1)
+    assert add1.output_ports[0].cache == 6
+    add2: ComputeNode = AddDefault(executor="local")
+    add2.exec_mode = 'any'
+    add1.connect_with(add2, 0, 0)
+    add1(2, 2)
+    assert add2.output_ports[0].cache == 14
 
 
 def test_thread_executor():
@@ -155,7 +180,7 @@ def test_thread_executor():
     sq1: ComputeNode = SleepSq(executor="thread")
     sq1(3)
     sess.engine.wait()
-    assert sq1.output_ports[0].get_cache() == 9
+    assert sq1.output_ports[0].cache == 9
     Add = node_defs['add']
     add: ComputeNode = Add(executor="thread")
     sq2: ComputeNode = SleepSq(executor="thread")
@@ -167,7 +192,7 @@ def test_thread_executor():
     sess.engine.wait()
     t2 = time.time()
     assert (t2 - t1) < 1.0
-    assert add.output_ports[0].get_cache() == 50
+    assert add.output_ports[0].cache == 50
 
 
 def test_thread_executor_resource_consume():
@@ -185,7 +210,7 @@ def test_thread_executor_resource_consume():
     sess.engine.wait()
     t2 = time.time()
     assert (t2 - t1) > 1.0
-    assert add.output_ports[0].get_cache() == 50
+    assert add.output_ports[0].cache == 50
 
 
 def test_process_executor():
@@ -194,7 +219,7 @@ def test_process_executor():
     sq1: ComputeNode = SleepSq(executor="process")
     sq1(3)
     sess.engine.wait()
-    assert sq1.output_ports[0].get_cache() == 9
+    assert sq1.output_ports[0].cache == 9
 
 
 def test_process_executor_resource_consume():
@@ -210,7 +235,7 @@ def test_process_executor_resource_consume():
     assert sess.engine.process_count == 0
     sq2(5)
     sess.engine.wait()
-    assert add.output_ports[0].get_cache() == 50
+    assert add.output_ports[0].cache == 50
 
 
 def test_job_cancel():
@@ -240,13 +265,13 @@ def test_job_re_emit():
     sq1: ComputeNode = SleepSq(executor="thread")
     sq1(3)
     sess.engine.wait()
-    assert sq1.output_ports[0].get_cache() == 9
+    assert sq1.output_ports[0].cache == 9
     sq1.clear_port_caches()
     assert len(sess.engine.jobs.done) == 1
     j = list(sess.engine.jobs.done.values())[0]
     j.emit()
     sess.engine.wait()
-    assert sq1.output_ports[0].get_cache() == 9
+    assert sq1.output_ports[0].cache == 9
 
 
 def test_attr_range():
