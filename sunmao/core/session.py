@@ -37,3 +37,10 @@ class Session(SunmaoObj):
         assert isinstance(flow, Flow)
         self.flows[flow.id] = flow
         self._current_flow = flow
+
+    @classmethod
+    def get_current(cls) -> "Session":
+        return get_current_session()
+
+    def wait(self):
+        self.engine.wait()

@@ -56,6 +56,13 @@ class Node(FlowElement):
             if isinstance(p, OutputDataPort):
                 p.clear_cache()
 
+    @property
+    def caches(self) -> T.Tuple:
+        return tuple([
+            p.cache for p in self.output_ports
+            if isinstance(p, OutputDataPort)
+        ])
+
     def activate(self):
         bufs_has_signal = [
             len(inp.signal_buffer) > 0 for inp in self.input_ports
