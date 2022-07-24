@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import time
 
 from .base import SunmaoObj
-from .job.base import Job, JobStatus
+from .job.base import RawJob, Job, valid_job_statuses, JobStatusType
 
 
 @dataclass
@@ -17,24 +17,44 @@ JobStoreType = T.OrderedDict[str, Job]
 
 
 class Jobs:
-    types = JobStatus.valid_range
+    valid_statuses = valid_job_statuses
 
     def __init__(self):
-        self.pending: JobStoreType = OrderedDict()
-        self.running: JobStoreType = OrderedDict()
-        self.done: JobStoreType = OrderedDict()
-        self.failed: JobStoreType = OrderedDict()
-        self.cannceled: JobStoreType = OrderedDict()
+        self._stores: T.Dict[str, JobStoreType] = {
+            s: OrderedDict() for s in self.valid_statuses
+        }
+        self.pending = self._stores['pending']
+        self.running = self._stores['running']
+        self.done = self._stores['done']
+        self.failed = self._stores['failed']
+        self.canceled = self._stores['canceled']
 
-    def clear(self, types):
-        for tp in types:
-            self.__getattribute__(tp).clear()
+    def clear(self, statuses: T.List[JobStatusType]):
+        for s in statuses:
+            self._stores[s].clear()
 
     def clear_non_active(self):
-        self.clear(("done", "failed", "cannceled"))
+        self.clear(["done", "failed", "cannceled"])
 
     def clear_all(self):
-        self.clear(self.types)
+        self.clear(self.valid_statuses)
+
+    def add(self, job: Job):
+        store = self._stores[job.status]
+        store[job.id] = job
+
+    def remove(self, job: Job):
+        for tp in self.valid_statuses:
+            store = self._stores[tp]
+            if job.id in store:
+                store.pop(job.id)
+
+    def move_job_store(self, job: "RawJob", new_status: JobStatusType):
+        if job.status == new_status:
+            return
+        old_store = self._stores[job.status]
+        new_store = self._stores[new_status]
+        new_store[job.id] = old_store.pop(job.id)
 
 
 class Engine(SunmaoObj):
@@ -54,13 +74,13 @@ class Engine(SunmaoObj):
 
     def setup_by_setting(self):
         setting = self.setting
-        self.thread_counts = setting.max_threads
+        self.thread_count = setting.max_threads
         self.process_count = setting.max_processes
 
     def submit(self, job: Job):
         assert job.status == "pending"
         job.engine = self
-        self.jobs.pending[job.id] = job
+        self.jobs.add(job)
         self.activate()
 
     def activate(self):

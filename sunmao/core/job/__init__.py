@@ -4,5 +4,5 @@ from .process import ProcessJob
 
 
 __all__ = [
-    Job, LocalJob, ThreadJob, ProcessJob,
+    "Job", "LocalJob", "ThreadJob", "ProcessJob",
 ]

@@ -250,8 +250,10 @@ def test_process_executor_resource_consume():
 
 
 def test_job_cancel():
+    from copy import copy
     sess = Session()
     LongSleepSq = node_defs['long_sleep_square']
+    thread_count = copy(sess.engine.thread_count)
     sq1: ComputeNode = LongSleepSq(executor="thread")
     sq1(3)
     assert len(sess.engine.jobs.running) == 1
@@ -259,6 +261,7 @@ def test_job_cancel():
     j.cancel()
     assert len(sess.engine.jobs.running) == 0
     assert j.status == "canceled"
+    assert thread_count == sess.engine.thread_count
     # test process job cancel
     sq1.executor = "process"
     sq1(3)

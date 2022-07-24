@@ -32,7 +32,7 @@ class NodePort(FlowElement):
 class InputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
-        self.signal_buffer: "deque[ActivateSignal]" = deque([])
+        self.signal_buffer: T.Deque[ActivateSignal] = deque([])
 
     def put_signal(self, data=None):
         self.signal_buffer.append(ActivateSignal(data))
@@ -87,34 +87,39 @@ class OutputPort(NodePort):
         return [conn.target for conn in self.connections]
 
 
+TypeCheckerType = T.Callable[[T.Any], bool]
+RangeCheckerType = T.Callable[[T.Any, T.Any], bool]
+
+
 class DataPort(NodePort):
-    _type_to_type_checker = {}
-    _type_to_range_checker = {}
+    _type_to_type_checker: T.Dict[T.Type, TypeCheckerType] = {}
+    _type_to_range_checker: T.Dict[T.Type, RangeCheckerType] = {}
 
     def __init__(
             self, name: str, node: "Node",
-            data_type: type, data_range: T.Optional[object]) -> None:
+            data_type: T.Optional[type], data_range: T.Optional[object]) -> None:
         NodePort.__init__(self, name, node)
         self.data_type = data_type
         self.data_range = data_range
 
     @classmethod
     def register_type_checker(
-            cls, type, func: T.Optional[T.Callable[[T.Any], bool]] = None):
+            cls, type, func: T.Optional[TypeCheckerType] = None):
         if func is None:
             func = lambda val: isinstance(val, type)  # noqa
         cls._type_to_type_checker[type] = func
 
     @classmethod
     def register_range_checker(
-            cls, type, func: T.Callable[[T.Any, T.Any], bool]):
+            cls, type, func: RangeCheckerType):
         cls._type_to_range_checker[type] = func
 
     def check(self, val):
-        type_checker = self._type_to_type_checker.get(self.data_type)
-        if type_checker and (not type_checker(val)):
-            raise TypeCheckError(
-                f"Expect type: {self.data_type}, got: {type(val)}")
+        if self.data_type is not None:
+            type_checker = self._type_to_type_checker.get(self.data_type)
+            if type_checker and (not type_checker(val)):
+                raise TypeCheckError(
+                    f"Expect type: {self.data_type}, got: {type(val)}")
         if self.data_range is not None:
             range_checker = self._type_to_range_checker.get(self.data_type)
             if range_checker and (not range_checker(val, self.data_range)):
@@ -150,7 +155,7 @@ class OutputExecPort(OutputPort, ExecPort):
 class InputDataPort(InputPort, DataPort):
     def __init__(
             self, name: str, node: "Node",
-            data_type: type, data_range: T.Optional[object],
+            data_type: T.Optional[type], data_range: T.Optional[object],
             data_default: T.Optional[T.Any] = None) -> None:
         InputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, data_type, data_range)
@@ -189,7 +194,7 @@ class InputDataPort(InputPort, DataPort):
 class OutputDataPort(OutputPort, DataPort):
     def __init__(
             self, name: str, node: "Node",
-            data_type: type, data_range: T.Optional[object]) -> None:
+            data_type: T.Optional[type], data_range: T.Optional[object]) -> None:
         OutputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, data_type, data_range)
         self._cache: T.Optional[T.Any] = None
@@ -226,6 +231,7 @@ class PortBluePrint:
     data_default: T.Optional[object] = None
 
     def to_input_port(self, node: "Node") -> InputPort:
+        port: InputPort
         if self.exec:
             port = InputExecPort(self.name, node)
         else:
@@ -235,6 +241,7 @@ class PortBluePrint:
         return port
 
     def to_output_port(self, node: "Node") -> OutputPort:
+        port: OutputPort
         if self.exec:
             port = OutputExecPort(self.name, node)
         else:

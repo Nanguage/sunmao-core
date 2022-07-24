@@ -11,9 +11,19 @@ if T.TYPE_CHECKING:
     from ..node import ComputeNode
 
 
-class JobStatus(CheckAttrRange):
-    valid_range = ('pending', 'running', 'failed', 'done', 'canceled')
+JobStatusType = T.Literal['pending', 'running', 'failed', 'done', 'canceled']
+valid_job_statuses = JobStatusType.__args__  # type: ignore
+
+
+class JobStatusAttr(CheckAttrRange):
+    valid_range: T.Iterable[JobStatusType] = valid_job_statuses
     attr = "_status"
+
+    def __set__(self, obj: "RawJob", value: JobStatusType):
+        self.check(obj, value)
+        if obj.engine is not None:
+            obj.engine.jobs.move_job_store(obj, value)
+        setattr(obj, self.attr, value)
 
 
 class JobEmitError(SunmaoError):
@@ -22,7 +32,7 @@ class JobEmitError(SunmaoError):
 
 class RawJob(SunmaoObj):
 
-    status = JobStatus()
+    status = JobStatusAttr()
 
     def __init__(
             self,
@@ -35,9 +45,9 @@ class RawJob(SunmaoObj):
         self.args = args
         self.callback = callback
         self.error_callback = error_callback
-        self.status: str = "pending"
         self.engine: T.Optional["Engine"] = None
-        self._for_join = Queue()
+        self._status: str = "pending"
+        self._for_join: Queue = Queue()
 
     def __repr__(self) -> str:
         return f"<Job status={self.status} id={self.id[-8:]} func={self.func}>"
@@ -56,19 +66,15 @@ class RawJob(SunmaoObj):
         if self.status not in _valid_status:
             raise JobEmitError(
                 f"{self} is not in valid status({_valid_status})")
-        getattr(self.engine.jobs, self.status).pop(self.id)
-        self.engine.jobs.running[self.id] = self
         self.status = "running"
         self._for_join.put(0)
         self.run()
 
-    def _on_finish(self, new_state: str = "done"):
-        self.status = new_state
-        self.engine.jobs.running.pop(self.id)
-        jobs = getattr(self.engine.jobs, new_state)
-        jobs[self.id] = self
+    def _on_finish(self, new_status: JobStatusType = "done"):
+        self.status = new_status
         self.release_resource()
-        self.engine.activate()
+        if self.engine is not None:
+            self.engine.activate()
         self._for_join.task_done()
         self._for_join.get()
 
@@ -91,9 +97,10 @@ class RawJob(SunmaoObj):
             return
         try:
             self.cancel_task()
+        except Exception as e:
+            print(str(e))
+        finally:
             self._on_finish("canceled")
-        except Exception:
-            pass
 
     def cancel_task(self):
         pass

@@ -124,21 +124,21 @@ def parse_output_args(func: T.Callable) -> T.List[PortBluePrint]:
 
 
 def compute(
-        target_func: T.Optional[T.Callable], **kwargs) -> T.Type[ComputeNode]:
+        target_func: T.Optional[T.Callable] = None, **kwargs) -> T.Type[ComputeNode]:
     """Decorator for create ComputeNode from a callable object."""
     if target_func is None:
-        return functools.partial(compute, **kwargs)
+        return functools.partial(compute, **kwargs)  # type: ignore
+    else:
+        input_bps = parse_input_args(target_func)
+        output_bps = parse_output_args(target_func)
 
-    input_bps = parse_input_args(target_func)
-    output_bps = parse_output_args(target_func)
+        class Node(ComputeNode):
+            __name__ = target_func.__name__  # type: ignore
+            __doc__ = target_func.__doc__
+            init_input_ports: T.List["PortBluePrint"] = input_bps
+            init_output_ports: T.List["PortBluePrint"] = output_bps
+            default_exec_mode = kwargs.get("default_exec_mode", "all")
+            default_executor = kwargs.get("default_executor", "thread")
+            func = staticmethod(target_func)  # type: ignore
 
-    class Node(ComputeNode):
-        __name__ = target_func.__name__
-        __doc__ = target_func.__doc__
-        init_input_ports: T.List["PortBluePrint"] = input_bps
-        init_output_ports: T.List["PortBluePrint"] = output_bps
-        default_exec_mode = kwargs.get("default_exec_mode", "all")
-        default_executor = kwargs.get("default_executor", "thread")
-        func = staticmethod(target_func)
-
-    return Node
+        return Node

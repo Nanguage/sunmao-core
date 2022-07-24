@@ -3,15 +3,24 @@ from .base import Job
 
 class ProcessJob(Job):
     def has_resource(self) -> bool:
-        return self.engine.process_count > 0
+        if self.engine is None:
+            return False
+        else:
+            return self.engine.process_count > 0
 
     def consume_resource(self) -> bool:
-        self.engine.process_count -= 1
-        return True
+        if self.engine is None:
+            return False
+        else:
+            self.engine.process_count -= 1
+            return True
 
     def release_resource(self) -> bool:
-        self.engine.process_count += 1
-        return True
+        if self.engine is None:
+            return False
+        else:
+            self.engine.process_count += 1
+            return True
 
     def run(self):
         from pathos.multiprocessing import Pool

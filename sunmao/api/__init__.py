@@ -10,6 +10,6 @@ patch_all()
 
 
 __all__ = [
-    ComputeNode, PortBluePrint, Session, Flow,
-    compute, In, Out, Outputs
+    "ComputeNode", "PortBluePrint", "Session", "Flow",
+    "compute", "In", "Out", "Outputs"
 ]

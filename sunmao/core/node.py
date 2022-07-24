@@ -202,6 +202,7 @@ class ComputeNode(Node):
         print(str(e))
 
     def run(self, *args) -> "Job":
+        job_cls: T.Type[Job]
         if self.executor == "local":
             job_cls = LocalJob
         elif self.executor == "thread":

@@ -29,8 +29,8 @@ def patch_node():
     Node.O = property(_get_output_ports)  # noqa
 
     def _get_port_by_name(self: Node, key: str) -> NodePort:
+        p: NodePort
         for p in self.input_ports + self.output_ports:
-            p: NodePort
             if p.name == key:
                 return p
         raise KeyError(f"No port named {key} in node {self}.")

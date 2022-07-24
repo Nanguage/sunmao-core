@@ -17,7 +17,7 @@ class Flow(SunmaoObj):
         if name is None:
             name = "flow_" + self.id[-8:]
         self.name = name
-        self._obj_ids = set()
+        self._obj_ids: set = set()
         self.nodes: T.Dict[str, Node] = {}
         self.connections: T.Dict[str, Connection] = {}
         self.other_objs: T.Dict[str, FlowElement] = {}
@@ -52,4 +52,4 @@ class Flow(SunmaoObj):
         else:
             assert isinstance(obj, FlowElement)
             self.other_objs.pop(obj.id)
-        self._obj_ids.pop(obj.id)
+        self._obj_ids.remove(obj.id)
