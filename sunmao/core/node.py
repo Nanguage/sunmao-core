@@ -11,6 +11,7 @@ from .utils import CheckAttrRange
 
 if T.TYPE_CHECKING:
     from .node_port import PortBluePrint
+    from .job.base import Job
 
 
 class ExecMode(CheckAttrRange):
@@ -57,11 +58,15 @@ class Node(FlowElement):
                 p.clear_cache()
 
     @property
-    def caches(self) -> T.Tuple:
-        return tuple([
+    def caches(self) -> T.Union[T.Tuple, T.Any]:
+        caches = tuple([
             p.cache for p in self.output_ports
             if isinstance(p, OutputDataPort)
         ])
+        if len(caches) > 1:
+            return caches
+        else:
+            return caches[0]
 
     def activate(self):
         bufs_has_signal = [
@@ -118,6 +123,13 @@ class Node(FlowElement):
             assert isinstance(port, OutputExecPort)
             port.activate_successors()
 
+    def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
+        if isinstance(res, tuple):
+            for i, r in enumerate(res):
+                self.set_output(i, r)
+        else:
+            self.set_output(0, res)
+
     def run(self, *args):
         pass
 
@@ -137,7 +149,7 @@ class Node(FlowElement):
                 res.append(r)
         return res
 
-    def _get_call_args(self, *args, **kwargs):
+    def _get_call_args(self, *args, **kwargs) -> T.List[T.Any]:
         name_to_idx = {}
         _args = []
         idx = 0
@@ -163,13 +175,6 @@ class Node(FlowElement):
             else:
                 inp.put_signal()
         self.activate()
-        caches = self.get_output_caches()
-        if len(caches) == 1:
-            return caches[0]
-        elif len(caches) > 1:
-            return tuple(caches)
-        else:
-            return None
 
 
 class NodeExecutor(CheckAttrRange):
@@ -190,7 +195,13 @@ class ComputeNode(Node):
         super().__init__(exec_mode, **kwargs)
         self.executor = executor
 
-    def run(self, *args) -> T.Any:
+    def callback(self, res):
+        self.set_outputs(res)
+
+    def error_callback(self, e: Exception):
+        print(str(e))
+
+    def run(self, *args) -> "Job":
         if self.executor == "local":
             job_cls = LocalJob
         elif self.executor == "thread":
@@ -198,21 +209,19 @@ class ComputeNode(Node):
         else:
             job_cls = ProcessJob
 
-        def callback(res):
-            self.set_outputs(res)
-
-        def error_callback(e):
-            print(e)
-
-        job = job_cls(self.func, args, callback, error_callback)
+        job = job_cls(self, args)
         self.session.engine.submit(job)
+        return job
 
-    def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
-        if isinstance(res, tuple):
-            for i, r in enumerate(res):
-                self.set_output(i, r)
-        else:
-            self.set_output(0, res)
+    def __call__(self, *args, **kwargs) -> "Job":
+        _args = self._get_call_args(*args, **kwargs)
+        idx = 0
+        for inp in self.input_ports:
+            if isinstance(inp, InputDataPort):
+                inp.check(_args[idx])
+                idx += 1
+        job = self.run(*_args)
+        return job
 
     @staticmethod
     def func(*args):

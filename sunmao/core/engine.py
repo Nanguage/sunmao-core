@@ -76,5 +76,5 @@ class Engine(SunmaoObj):
             if len(self.jobs.running) == 0:
                 break
             if print_running_jobs:
-                print(list(self.jobs.running))
+                print(list(self.jobs.running.values()))
             time.sleep(time_interval)

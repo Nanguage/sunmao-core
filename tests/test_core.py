@@ -92,13 +92,24 @@ def test_session():
 def test_one_node_run():
     Add = node_defs['add']
     add: ComputeNode = Add(executor="local")
-    assert add(1, 2) == 3
+    job = add(1, 2)
+    job.join()
+    assert job.result == 3
     with pytest.raises(TypeCheckError):
         add(1.0, 2)
     with pytest.raises(RangeCheckError):
         add(1, 101)
     with pytest.raises(RangeCheckError):
         add(100, 100)
+
+
+def test_job_join():
+    Add = node_defs['add']
+    for exe in ("local", "thread", "process"):
+        add: ComputeNode = Add(executor=exe)
+        job = add(1, 2)
+        job.join()
+        assert job.result == 3
 
 
 def test_conn_in_op():

@@ -43,3 +43,17 @@ def test_api_3():
     t(1)
     Session.get_current().wait()
     assert t.caches == ('ok', 1)
+
+
+def test_api_4():
+    @compute
+    def Square(a) -> object:
+        return a ** 2
+
+    sq1 = Square()
+    sq2 = Square()
+    sq3 = Square()
+    sq1 >> sq2 >> sq3
+    sq1(2)
+    Session.get_current().wait()
+    assert sq3.O[0].cache == ((2**2)**2)**2
