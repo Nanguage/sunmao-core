@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 import re
 
 
@@ -25,7 +25,7 @@ URL = "https://github.com/Nanguage/sunmao-engine"
 
 
 def get_version():
-    with open("sunmao/__init__.py") as f:
+    with open("sunmao/core/__init__.py") as f:
         for line in f.readlines():
             m = re.match("__version__ = '([^']+)'", line)
             if m:
@@ -55,7 +55,7 @@ setup(
     long_description=get_long_description(),
     keywords=keywords,
     url=URL,
-    packages=find_packages(),
+    packages=find_namespace_packages(include=['sunmao.*']),
     include_package_data=True,
     zip_safe=False,
     classifiers=classifiers,
