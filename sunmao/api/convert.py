@@ -3,7 +3,7 @@ import inspect
 import functools
 
 from ..core.node import ComputeNode
-from ..core.node_port import PortBluePrint
+from ..core.node_port import Port
 from ..core.error import SunmaoError
 
 
@@ -11,7 +11,7 @@ class ConvertAPIError(SunmaoError):
     pass
 
 
-def _class_getitem(cls, key: T.Tuple) -> PortBluePrint:
+def _class_getitem(cls, key: T.Tuple) -> Port:
     name = 'port'
     type_ = object
     range_ = None
@@ -26,7 +26,7 @@ def _class_getitem(cls, key: T.Tuple) -> PortBluePrint:
             f"Subscription on {cls.__name__} class only "
             "support less than 4 parameters. "
             f"Got: {len(key)}")
-    bp = PortBluePrint(
+    bp = Port(
         name=name, data_type=type_, data_range=range_)
     return bp
 
@@ -83,15 +83,15 @@ class Outputs(object):
         return key
 
 
-def parse_input_args(func: T.Callable) -> T.List[PortBluePrint]:
+def parse_input_args(func: T.Callable) -> T.List[Port]:
     sig = inspect.signature(func)
     bps = list()
     for n, p in sig.parameters.items():
         ann = p.annotation
-        if isinstance(ann, PortBluePrint):
+        if isinstance(ann, Port):
             bp = ann
         else:
-            bp = PortBluePrint(n, data_type=ann)
+            bp = Port(n, data_type=ann)
         bp.name = n
         if p.default != inspect._empty:
             bp.data_default = p.default
@@ -99,16 +99,16 @@ def parse_input_args(func: T.Callable) -> T.List[PortBluePrint]:
     return bps
 
 
-def parse_output_args(func: T.Callable) -> T.List[PortBluePrint]:
+def parse_output_args(func: T.Callable) -> T.List[Port]:
     ret_ann = func.__annotations__.get('return')
     bps = list()
 
     def construct_bp(ann, name="out"):
-        if isinstance(ann, PortBluePrint):
+        if isinstance(ann, Port):
             bp = ann
             bp.name = name
         else:
-            bp = PortBluePrint(name=name, data_type=ann)
+            bp = Port(name=name, data_type=ann)
         return bp
 
     if isinstance(ret_ann, tuple):
@@ -124,7 +124,8 @@ def parse_output_args(func: T.Callable) -> T.List[PortBluePrint]:
 
 
 def compute(
-        target_func: T.Optional[T.Callable] = None, **kwargs) -> T.Type[ComputeNode]:
+        target_func: T.Optional[T.Callable] = None,
+        **kwargs) -> T.Type[ComputeNode]:
     """Decorator for create ComputeNode from a callable object."""
     if target_func is None:
         return functools.partial(compute, **kwargs)  # type: ignore
@@ -135,8 +136,8 @@ def compute(
         class Node(ComputeNode):
             __name__ = target_func.__name__  # type: ignore
             __doc__ = target_func.__doc__
-            init_input_ports: T.List["PortBluePrint"] = input_bps
-            init_output_ports: T.List["PortBluePrint"] = output_bps
+            init_input_ports: T.List["Port"] = input_bps
+            init_output_ports: T.List["Port"] = output_bps
             default_exec_mode = kwargs.get("default_exec_mode", "all")
             default_executor = kwargs.get("default_executor", "thread")
             func = staticmethod(target_func)  # type: ignore

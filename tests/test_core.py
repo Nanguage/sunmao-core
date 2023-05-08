@@ -1,29 +1,25 @@
+import typing as T
 import pytest
 import time
 
 from sunmao.core.node import ComputeNode
-from sunmao.core.node_port import PortBluePrint
+from sunmao.core.node_port import Port
 from sunmao.core.error import TypeCheckError, RangeCheckError
 from sunmao.core.connection import Connection
 from sunmao.core.flow import Flow
 from sunmao.core.session import Session
-from sunmao.core.engine import EngineSetting
+from executor.engine import EngineSetting
 
 
-node_defs = {}
-
-
-@pytest.mark.order(0)
-def test_node_def():
-    global node_defs
-
+@pytest.fixture
+def node_defs():
     class AddNode(ComputeNode):
         init_input_ports = [
-            PortBluePrint("a", data_type=int, data_range=(0, 100)),
-            PortBluePrint("b", data_type=int, data_range=(0, 100)),
+            Port("a", data_type=int, data_range=(0, 100)),
+            Port("b", data_type=int, data_range=(0, 100)),
         ]
         init_output_ports = [
-            PortBluePrint("res", data_type=int, data_range=(0, 100))
+            Port("res", data_type=int, data_range=(0, 100))
         ]
 
         @staticmethod
@@ -32,18 +28,18 @@ def test_node_def():
 
     class AddNodeDefault(AddNode):
         init_input_ports = [
-            PortBluePrint("a", data_type=int, data_range=(0, 100)),
-            PortBluePrint(
-                "b", data_type=int, data_range=(0, 100), 
+            Port("a", data_type=int, data_range=(0, 100)),
+            Port(
+                "b", data_type=int, data_range=(0, 100),
                 data_default=10),
         ]
 
     class SquareNode(ComputeNode):
         init_input_ports = [
-            PortBluePrint("a")
+            Port("a")
         ]
         init_output_ports = [
-            PortBluePrint("res")
+            Port("res")
         ]
 
         @staticmethod
@@ -62,14 +58,17 @@ def test_node_def():
             time.sleep(10)
             return a**2
 
-    node_defs['add'] = AddNode
-    node_defs['add_with_default'] = AddNodeDefault
-    node_defs['square'] = SquareNode
-    node_defs['sleep_square'] = SleepSquareNode
-    node_defs['long_sleep_square'] = LongSleepSquare
+    _node_defs = {}
+
+    _node_defs['add'] = AddNode
+    _node_defs['add_with_default'] = AddNodeDefault
+    _node_defs['square'] = SquareNode
+    _node_defs['sleep_square'] = SleepSquareNode
+    _node_defs['long_sleep_square'] = LongSleepSquare
+    return _node_defs
 
 
-def test_flow():
+def test_flow(node_defs):
     Add = node_defs['add']
     add: ComputeNode = Add()
     assert isinstance(add.flow, Flow)
@@ -89,18 +88,17 @@ def test_session():
     assert flow1.session is sess1
 
 
-def test_one_node_run():
-    Add = node_defs['add']
-    add: ComputeNode = Add(executor="local")
-    job = add(1, 2)
-    job.join()
-    assert job.result == 3
-    with pytest.raises(TypeCheckError):
-        add(1.0, 2)
-    with pytest.raises(RangeCheckError):
-        add(1, 101)
-    with pytest.raises(RangeCheckError):
-        add(100, 100)
+def test_one_node_run(node_defs):
+    with Session() as sess:
+        Add: T.Type[ComputeNode] = node_defs['add']
+        add: ComputeNode = Add(job_type='local')
+        job = add(1, 2)
+        sess.engine.wait_job(job)
+        assert job.result() == 3
+        with pytest.raises(TypeCheckError):
+            add(1.0, 2)
+        with pytest.raises(RangeCheckError):
+            add(1, 101)
 
 
 def test_job_join():

@@ -11,7 +11,7 @@ def test_api():
     @compute
     def Square(a: int) -> int:
         return a ** 2
-    
+
     add = Add()
     sq1 = Square()
     sq2 = Square()
@@ -31,7 +31,7 @@ def test_api_2():
     eq = EqRet()
     with pytest.raises(RangeCheckError):
         eq(100)
-        Session.get_current().wait()
+        Session.get_current().engine.wait()
 
 
 def test_api_3():
@@ -41,7 +41,7 @@ def test_api_3():
 
     t = Test()
     t(1)
-    Session.get_current().wait()
+    Session.get_current().engine.wait()
     assert t.caches == ('ok', 1)
 
 
@@ -55,5 +55,5 @@ def test_api_4():
     sq3 = Square()
     sq1 >> sq2 >> sq3
     sq1(2)
-    Session.get_current().wait()
+    Session.get_current().engine.wait()
     assert sq3.O[0].cache == ((2**2)**2)**2

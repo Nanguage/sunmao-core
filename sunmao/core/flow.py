@@ -22,8 +22,8 @@ class Flow(SunmaoObj):
         self.connections: T.Dict[str, Connection] = {}
         self.other_objs: T.Dict[str, FlowElement] = {}
         if session is None:
-            from .session import get_current_session
-            session = get_current_session()
+            from .session import Session
+            session = Session.get_current()
         self.session = session
         self.session.add_flow(self)
 

@@ -97,7 +97,8 @@ class DataPort(NodePort):
 
     def __init__(
             self, name: str, node: "Node",
-            data_type: T.Optional[type], data_range: T.Optional[object]) -> None:
+            data_type: T.Optional[type],
+            data_range: T.Optional[object]) -> None:
         NodePort.__init__(self, name, node)
         self.data_type = data_type
         self.data_range = data_range
@@ -194,7 +195,8 @@ class InputDataPort(InputPort, DataPort):
 class OutputDataPort(OutputPort, DataPort):
     def __init__(
             self, name: str, node: "Node",
-            data_type: T.Optional[type], data_range: T.Optional[object]) -> None:
+            data_type: T.Optional[type],
+            data_range: T.Optional[object]) -> None:
         OutputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, data_type, data_range)
         self._cache: T.Optional[T.Any] = None
@@ -223,7 +225,8 @@ class OutputDataPort(OutputPort, DataPort):
 
 
 @dataclass
-class PortBluePrint:
+class Port:
+    """The blueprint of a port."""
     name: str
     exec: bool = False
     data_type: T.Optional[type] = None

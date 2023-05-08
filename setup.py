@@ -7,9 +7,9 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
@@ -21,7 +21,7 @@ keywords = [
 ]
 
 
-URL = "https://github.com/Nanguage/sunmao-engine"
+URL = "https://github.com/Nanguage/sunmao-core"
 
 
 def get_version():
@@ -37,20 +37,31 @@ def get_long_description():
     return f"See {URL}"
 
 
-def get_install_requires():
-    requirements = ["pathos"]
+def get_requirements_from_file(filename):
+    requirements = []
+    with open(filename) as f:
+        for line in f.readlines():
+            line = line.strip()
+            if len(line) == 0:
+                continue
+            if line and not line.startswith('#'):
+                requirements.append(line)
     return requirements
 
 
-requires_test = ['pytest', 'pytest-cov', 'flake8', 'pytest-order']
+def get_install_requires():
+    return get_requirements_from_file('requirements.txt')
+
+
+requires_test = ['pytest', 'pytest-cov', 'flake8', 'pytest-order', 'mypy']
 
 
 setup(
-    name='sunmao',
+    name='sunmao-core',
     author='Weize Xu',
     author_email='vet.xwz@gmail.com',
     version=get_version(),
-    license='GPLv3',
+    license='MIT',
     description='Sunmao is an workflow engine for build workflow tools.',
     long_description=get_long_description(),
     keywords=keywords,
@@ -63,5 +74,5 @@ setup(
     extras_require={
         'test': requires_test,
     },
-    python_requires='>=3.7, <4',
+    python_requires='>=3.8, <4',
 )

@@ -1,17 +1,17 @@
 import typing as T
 
+from executor.engine.job import Job
+
 from .base import FlowElement
 from .node_port import (
     InputDataPort, InputExecPort,
     OutputDataPort, OutputExecPort,
 )
-from .job import LocalJob, ThreadJob, ProcessJob
-from .utils import CheckAttrRange
+from .utils import CheckAttrRange, job_type_classes
 
 
 if T.TYPE_CHECKING:
-    from .node_port import PortBluePrint
-    from .job.base import Job
+    from .node_port import Port
 
 
 class ExecMode(CheckAttrRange):
@@ -25,8 +25,8 @@ class ExecMode(CheckAttrRange):
 
 class Node(FlowElement):
 
-    init_input_ports: T.List["PortBluePrint"] = []
-    init_output_ports: T.List["PortBluePrint"] = []
+    init_input_ports: T.List["Port"] = []
+    init_output_ports: T.List["Port"] = []
 
     default_exec_mode = "all"
     exec_mode = ExecMode()
@@ -177,40 +177,46 @@ class Node(FlowElement):
         self.activate()
 
 
-class NodeExecutor(CheckAttrRange):
+class JobType(CheckAttrRange):
     valid_range = ("local", "thread", "process", "dask")
-    attr = "_executor"
+    attr = "_job_type"
 
 
 class ComputeNode(Node):
 
-    default_executor = "local"
-    executor = NodeExecutor()
+    default_job_type = "thread"
+    job_type = JobType()
 
     def __init__(
             self,
             exec_mode: str = Node.default_exec_mode,
-            executor: str = default_executor,
+            job_type: str = default_job_type,
             **kwargs) -> None:
         super().__init__(exec_mode, **kwargs)
-        self.executor = executor
+        self.job_type = job_type  # type: ignore
 
-    def callback(self, res):
-        self.set_outputs(res)
+    @staticmethod
+    def callback(flow_id: str, node_id: str, res):
+        # TODO
+        pass
 
-    def error_callback(self, e: Exception):
+    @staticmethod
+    def error_callback(flow_id: str, node_id: str, e: Exception):
+        # TODO
         print(str(e))
 
     def run(self, *args) -> "Job":
         job_cls: T.Type[Job]
-        if self.executor == "local":
-            job_cls = LocalJob
-        elif self.executor == "thread":
-            job_cls = ThreadJob
-        else:
-            job_cls = ProcessJob
-
-        job = job_cls(self, args)
+        job_cls = job_type_classes[self.job_type]
+        job = job_cls(
+            self.func, args, name=self.__class__.__name__,
+            callback=(
+                lambda res: self.callback(self.flow.id, self.id, res)
+            ),
+            error_callback=(
+                lambda e: self.error_callback(self.flow.id, self.id, e)
+            )
+        )
         self.session.engine.submit(job)
         return job
 

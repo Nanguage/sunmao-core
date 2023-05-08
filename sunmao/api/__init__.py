@@ -1,5 +1,5 @@
 from ..core.node import ComputeNode
-from ..core.node_port import PortBluePrint
+from ..core.node_port import Port
 from ..core.flow import Flow
 from ..core.session import Session
 from .convert import compute, In, Out, Outputs
@@ -10,6 +10,6 @@ patch_all()
 
 
 __all__ = [
-    "ComputeNode", "PortBluePrint", "Session", "Flow",
+    "ComputeNode", "Port", "Session", "Flow",
     "compute", "In", "Out", "Outputs"
 ]

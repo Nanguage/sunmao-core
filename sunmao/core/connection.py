@@ -17,6 +17,6 @@ class Connection(FlowElement):
         self.target = target
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Connection): 
+        if not isinstance(other, Connection):
             return NotImplemented
         return (self.source == other.source) and (self.target == other.target)
