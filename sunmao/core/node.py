@@ -197,25 +197,26 @@ class ComputeNode(Node):
 
     @staticmethod
     def callback(flow_id: str, node_id: str, res):
-        # TODO
-        pass
+        from .session import Session
+        sess = Session.get_current()
+        node = sess.flows[flow_id].nodes[node_id]
+        node.set_outputs(res)
 
     @staticmethod
     def error_callback(flow_id: str, node_id: str, e: Exception):
-        # TODO
         print(str(e))
 
     def run(self, *args) -> "Job":
         job_cls: T.Type[Job]
         job_cls = job_type_classes[self.job_type]
+        flow_id = self.flow.id
+        node_id = self.id
+        _callback = self.callback
+        _error_callback = self.error_callback
         job = job_cls(
             self.func, args, name=self.__class__.__name__,
-            callback=(
-                lambda res: self.callback(self.flow.id, self.id, res)
-            ),
-            error_callback=(
-                lambda e: self.error_callback(self.flow.id, self.id, e)
-            )
+            callback=lambda res: _callback(flow_id, node_id, res),
+            error_callback=lambda e: _error_callback(flow_id, node_id, e),
         )
         self.session.engine.submit(job)
         return job
