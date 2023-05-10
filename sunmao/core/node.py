@@ -49,16 +49,19 @@ class Node(FlowElement):
         ]
 
     def clear_signal_buffers(self):
+        """Clear all signal buffers of input ports."""
         for inp in self.input_ports:
             inp.clear_signal_buffer()
 
     def clear_port_caches(self):
+        """Clear all caches of output ports."""
         for p in self.output_ports:
             if isinstance(p, OutputDataPort):
                 p.clear_cache()
 
     @property
     def caches(self) -> T.Union[T.Tuple, T.Any]:
+        """Return caches of all output ports."""
         caches = tuple([
             p.cache for p in self.output_ports
             if isinstance(p, OutputDataPort)
@@ -68,18 +71,18 @@ class Node(FlowElement):
         else:
             return caches[0]
 
-    def activate(self):
+    async def activate(self):
         bufs_has_signal = [
             len(inp.signal_buffer) > 0 for inp in self.input_ports
         ]
         if self.exec_mode == "all":
             if all(bufs_has_signal):
                 args = self.consume_all_ports()
-                self.run(*args)
+                await self.run(*args)
         else:
             if any(bufs_has_signal):
                 args = self.consume_ports_with_cache()
-                self.run(*args)
+                await self.run(*args)
 
     def consume_all_ports(self) -> T.List[T.Any]:
         """Consume one signal of all ports.
@@ -115,22 +118,23 @@ class Node(FlowElement):
                     inp.get_signal()
         return args
 
-    def set_output(self, idx: int, data: T.Any = None):
+    async def set_output(self, idx: int, data: T.Any = None):
+        """Set the cache of output port with index `idx` to `data`."""
         port = self.output_ports[idx]
         if isinstance(port, OutputDataPort):
-            port.push_data(data)
+            await port.push_data(data)
         else:
             assert isinstance(port, OutputExecPort)
-            port.activate_successors()
+            await port.activate_successors()
 
-    def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
+    async def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
         if isinstance(res, tuple):
             for i, r in enumerate(res):
-                self.set_output(i, r)
+                await self.set_output(i, r)
         else:
-            self.set_output(0, res)
+            await self.set_output(0, res)
 
-    def run(self, *args):
+    async def run(self, *args):
         pass
 
     def connect_with(
@@ -166,7 +170,7 @@ class Node(FlowElement):
             _args[idx] = a
         return _args
 
-    def __call__(self, *args, **kwargs):
+    async def __call__(self, *args, **kwargs):
         _args = list(reversed(self._get_call_args(*args, **kwargs)))
         for inp in self.input_ports:
             if isinstance(inp, InputDataPort):
@@ -196,39 +200,46 @@ class ComputeNode(Node):
         self.job_type = job_type  # type: ignore
 
     @staticmethod
-    def callback(flow_id: str, node_id: str, res):
+    async def callback(flow_id: str, node_id: str, res):
         from .session import Session
         sess = Session.get_current()
         node = sess.flows[flow_id].nodes[node_id]
-        node.set_outputs(res)
+        await node.set_outputs(res)
 
     @staticmethod
-    def error_callback(flow_id: str, node_id: str, e: Exception):
+    async def error_callback(flow_id: str, node_id: str, e: Exception):
         print(str(e))
 
-    def run(self, *args) -> "Job":
+    async def run(self, *args) -> "Job":
         job_cls: T.Type[Job]
         job_cls = job_type_classes[self.job_type]
         flow_id = self.flow.id
         node_id = self.id
         _callback = self.callback
         _error_callback = self.error_callback
+
+        async def callback(res):
+            await _callback(flow_id, node_id, res)
+
+        async def error_callback(e):
+            await _error_callback(flow_id, node_id, e)
+
         job = job_cls(
             self.func, args, name=self.__class__.__name__,
-            callback=lambda res: _callback(flow_id, node_id, res),
-            error_callback=lambda e: _error_callback(flow_id, node_id, e),
+            callback=callback,
+            error_callback=error_callback,
         )
-        self.session.engine.submit(job)
+        await self.session.engine.submit_async(job)
         return job
 
-    def __call__(self, *args, **kwargs) -> "Job":
+    async def __call__(self, *args, **kwargs) -> "Job":
         _args = self._get_call_args(*args, **kwargs)
         idx = 0
         for inp in self.input_ports:
             if isinstance(inp, InputDataPort):
                 inp.check(_args[idx])
                 idx += 1
-        job = self.run(*_args)
+        job = await self.run(*_args)
         return job
 
     @staticmethod

@@ -26,7 +26,7 @@ class NodePort(FlowElement):
         super().__init__(**kwargs)
         self.name = name
         self.node = node
-        self.connections: T.List["Connection"] = []
+        self.connections: T.Set["Connection"] = set()
 
 
 class InputPort(NodePort):
@@ -48,32 +48,22 @@ class InputPort(NodePort):
         return f"<InputPort {self.name} on {self.node}>"
 
     @property
-    def predecessor(self) -> T.Optional["OutputPort"]:
-        if len(self.connections) == 0:
-            return None
-        else:
-            conn = self.connections[0]
-            return conn.source
+    def predecessors(self) -> T.Set["OutputPort"]:
+        return {conn.source for conn in self.connections}
 
 
 class OutputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
 
-    def activate_successors(self):
+    async def activate_successors(self):
         for s in self.successors:
             s.put_signal()
-            s.node.activate()
+            await s.node.activate()
 
     def connect_with(self, other: InputPort):
         conn = Connection(self, other)
-        if not (conn in self.connections):
-            self.connections.append(conn)
-        # keep only one connection in InputPort
-        if len(other.connections) == 0:
-            other.connections.append(conn)
-        else:
-            other.connections[0] = conn
+        self.connections.add(conn)
 
     def disconnect(self, other: InputPort):
         conn = Connection(self, other)
@@ -83,8 +73,8 @@ class OutputPort(NodePort):
             other.connections.remove(conn)
 
     @property
-    def successors(self) -> T.List["InputPort"]:
-        return [conn.target for conn in self.connections]
+    def successors(self) -> T.Set["InputPort"]:
+        return {conn.target for conn in self.connections}
 
 
 TypeCheckerType = T.Callable[[T.Any], bool]
@@ -186,6 +176,7 @@ class InputDataPort(InputPort, DataPort):
         1. predecessor's cache
         2. default value
         """
+        # TODO
         pre = self.predecessor
         if (pre is not None) and isinstance(pre, OutputDataPort):
             return pre.cache
@@ -201,12 +192,12 @@ class OutputDataPort(OutputPort, DataPort):
         DataPort.__init__(self, name, node, data_type, data_range)
         self._cache: T.Optional[T.Any] = None
 
-    def push_data(self, data: T.Any):
+    async def push_data(self, data: T.Any):
         self.check(data)
         self.set_cache(data)
         for conn in self.connections:
             conn.target.put_signal(data=data)
-            conn.target.node.activate()
+            await conn.target.node.activate()
 
     def set_cache(self, data: T.Any):
         self.check(data)

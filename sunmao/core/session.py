@@ -48,12 +48,10 @@ class Session(SunmaoObj):
         return sess
 
     def __enter__(self):
-        self.engine.start()
         self._prev_session = _current_session
         _set_current(self)
         return self
 
     def __exit__(self, *args):
-        self.engine.stop()
         _set_current(self._prev_session)
         self._prev_session = None

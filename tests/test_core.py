@@ -90,17 +90,18 @@ def test_session():
     assert flow2.session is sess
 
 
-def test_one_node_run(node_defs):
-    with Session() as sess:
+@pytest.mark.asyncio
+async def test_one_node_run(node_defs):
+    with Session():
         Add: T.Type[ComputeNode] = node_defs['add']
         add: ComputeNode = Add(job_type='local')
-        job = add(1, 2)
-        sess.engine.wait_job(job)
+        job = await add(1, 2)
+        await job.join()
         assert job.result() == 3
         with pytest.raises(TypeCheckError):
-            add(1.0, 2)
+            await add(1.0, 2)
         with pytest.raises(RangeCheckError):
-            add(1, 101)
+            await add(1, 101)
 
 
 def test_job_join(node_defs):
@@ -127,11 +128,10 @@ def test_conn_in_op(node_defs):
     assert len(conns) == 1
 
 
-def test_node_connect(node_defs):
+@pytest.mark.asyncio
+async def test_node_connect(node_defs):
     Add = node_defs['add']
-    # TODO: fix bug
-    import ipdb; ipdb.set_trace()
-    with Session():
+    with Session() as sess:
         add0: ComputeNode = Add(job_type="local")
         add1: ComputeNode = Add(job_type="local")
         add2: ComputeNode = Add(job_type="local")
@@ -141,7 +141,8 @@ def test_node_connect(node_defs):
         add1.connect_with(add2, 0, 1)
         assert len(add1.output_ports[0].connections) == 2
         assert len(add2.input_ports[0].connections) == 1
-        add1(1, 2)
+        await add1(1, 2)
+        await sess.engine.join()
         assert add2.output_ports[0].cache == 6
         add0.output_ports[0].disconnect(add2.input_ports[0])
         Square = node_defs['square']
@@ -149,7 +150,8 @@ def test_node_connect(node_defs):
         sq2: ComputeNode = Square(job_type="local")
         # chain connect
         add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
-        add0(1, 1)
+        await add0(1, 1)
+        await sess.engine.join()
         assert sq2.output_ports[0].cache == 16
 
 

@@ -53,7 +53,10 @@ def get_install_requires():
     return get_requirements_from_file('requirements.txt')
 
 
-requires_test = ['pytest', 'pytest-cov', 'flake8', 'pytest-order', 'mypy']
+requires_test = [
+    'pytest', 'pytest-cov', 'pytest-order',
+    'pytest-asyncio', 'flake8', 'mypy'
+]
 
 
 setup(

@@ -1,2 +1,2 @@
-executor-engine
+executor-engine>=0.1.7
 loguru
