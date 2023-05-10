@@ -33,9 +33,13 @@ class InputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
         self.signal_buffer: T.Deque[ActivateSignal] = deque([])
+        self.lastest_signal_provider: T.Optional[OutputPort] = None
 
-    def put_signal(self, data=None):
+    def put_signal(
+            self, provider: T.Optional["OutputPort"] = None,
+            data=None):
         self.signal_buffer.append(ActivateSignal(data))
+        self.lastest_signal_provider = provider
 
     def get_signal(self) -> ActivateSignal:
         return self.signal_buffer.pop()
@@ -58,12 +62,13 @@ class OutputPort(NodePort):
 
     async def activate_successors(self):
         for s in self.successors:
-            s.put_signal()
+            s.put_signal(provider=self)
             await s.node.activate()
 
     def connect_with(self, other: InputPort):
         conn = Connection(self, other)
         self.connections.add(conn)
+        other.connections.add(conn)
 
     def disconnect(self, other: InputPort):
         conn = Connection(self, other)
@@ -173,11 +178,10 @@ class InputDataPort(InputPort, DataPort):
 
     def fetch_missing(self) -> T.Optional[T.Any]:
         """Try to get data with:
-        1. predecessor's cache
+        1. lastest signal provider's cache
         2. default value
         """
-        # TODO
-        pre = self.predecessor
+        pre = self.lastest_signal_provider
         if (pre is not None) and isinstance(pre, OutputDataPort):
             return pre.cache
         return self.default
@@ -196,7 +200,8 @@ class OutputDataPort(OutputPort, DataPort):
         self.check(data)
         self.set_cache(data)
         for conn in self.connections:
-            conn.target.put_signal(data=data)
+            conn.target.put_signal(
+                provider=self, data=data)
             await conn.target.node.activate()
 
     def set_cache(self, data: T.Any):

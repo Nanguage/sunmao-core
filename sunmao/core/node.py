@@ -217,6 +217,7 @@ class ComputeNode(Node):
         node_id = self.id
         _callback = self.callback
         _error_callback = self.error_callback
+        _func = self.func
 
         async def callback(res):
             await _callback(flow_id, node_id, res)
@@ -224,8 +225,13 @@ class ComputeNode(Node):
         async def error_callback(e):
             await _error_callback(flow_id, node_id, e)
 
+        def func(*args):
+            return _func(*args)
+
+        func.__name__ = self.__class__.__name__ + ".func"
+
         job = job_cls(
-            self.func, args, name=self.__class__.__name__,
+            func, args, name=self.__class__.__name__,
             callback=callback,
             error_callback=error_callback,
         )

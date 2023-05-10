@@ -1,9 +1,11 @@
 import pytest
+import asyncio
 from sunmao.api import compute, In, Out, Outputs, Session
 from sunmao.core.error import RangeCheckError
 
 
-def test_api():
+@pytest.mark.asyncio
+async def test_api():
     @compute
     def Add(a: int, b: int) -> int:
         return a + b
@@ -17,35 +19,38 @@ def test_api():
     sq2 = Square()
     sq1 >> add.I[0]
     sq2 >> add.I[1]
-    sq1(10)
-    sq2(10)
-    Session.get_current().wait()
+    await sq1(10)
+    await sq2(10)
+    await Session.get_current().engine.join()
     assert add.O[0].cache == 200
 
 
-def test_api_2():
+@pytest.mark.asyncio
+async def test_api_2():
     @compute
     def EqRet(a: In[int, [0, 10]]) -> Out[int, [0, 10]]:
         return a
 
     eq = EqRet()
     with pytest.raises(RangeCheckError):
-        eq(100)
-        Session.get_current().engine.wait()
+        await eq(100)
+        await Session.get_current().engine.join()
 
 
-def test_api_3():
+@pytest.mark.asyncio
+async def test_api_3():
     @compute
     def Test(a: int) -> Outputs[str, Out[int, [0, 10]]]:
         return 'ok', a
 
     t = Test()
-    t(1)
-    Session.get_current().engine.wait()
+    await t(1)
+    await Session.get_current().engine.join()
     assert t.caches == ('ok', 1)
 
 
-def test_api_4():
+@pytest.mark.asyncio
+async def test_api_4():
     @compute
     def Square(a) -> object:
         return a ** 2
@@ -54,6 +59,6 @@ def test_api_4():
     sq2 = Square()
     sq3 = Square()
     sq1 >> sq2 >> sq3
-    sq1(2)
-    Session.get_current().engine.wait()
+    await sq1(2)
+    await asyncio.sleep(0.1)
     assert sq3.O[0].cache == ((2**2)**2)**2
