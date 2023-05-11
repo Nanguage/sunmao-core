@@ -1,9 +1,8 @@
 import typing as T
-from dataclasses import dataclass
 from collections import deque
+from funcdesc.desc import Value
 
 from .base import FlowElement
-from .error import TypeCheckError, RangeCheckError
 from .connection import Connection
 
 
@@ -82,55 +81,19 @@ class OutputPort(NodePort):
         return {conn.target for conn in self.connections}
 
 
-TypeCheckerType = T.Callable[[T.Any], bool]
-RangeCheckerType = T.Callable[[T.Any, T.Any], bool]
-
-
 class DataPort(NodePort):
-    _type_to_type_checker: T.Dict[T.Type, TypeCheckerType] = {}
-    _type_to_range_checker: T.Dict[T.Type, RangeCheckerType] = {}
-
     def __init__(
             self, name: str, node: "Node",
-            data_type: T.Optional[type],
-            data_range: T.Optional[object]) -> None:
+            val_desc: T.Optional["Value"] = None) -> None:
         NodePort.__init__(self, name, node)
-        self.data_type = data_type
-        self.data_range = data_range
-
-    @classmethod
-    def register_type_checker(
-            cls, type, func: T.Optional[TypeCheckerType] = None):
-        if func is None:
-            func = lambda val: isinstance(val, type)  # noqa
-        cls._type_to_type_checker[type] = func
-
-    @classmethod
-    def register_range_checker(
-            cls, type, func: RangeCheckerType):
-        cls._type_to_range_checker[type] = func
+        if val_desc is not None:
+            self.val_desc = val_desc
+        else:
+            self.val_desc = Value(name=name)
 
     def check(self, val):
-        if self.data_type is not None:
-            type_checker = self._type_to_type_checker.get(self.data_type)
-            if type_checker and (not type_checker(val)):
-                raise TypeCheckError(
-                    f"Expect type: {self.data_type}, got: {type(val)}")
-        if self.data_range is not None:
-            range_checker = self._type_to_range_checker.get(self.data_type)
-            if range_checker and (not range_checker(val, self.data_range)):
-                raise RangeCheckError(
-                    f"Expect range: {self.data_range}, got: {val}")
-
-
-DataPort.register_type_checker(int)
-DataPort.register_type_checker(float)
-DataPort.register_type_checker(str)
-DataPort.register_type_checker(bool)
-DataPort.register_range_checker(
-    int, lambda val, range_: range_[0] <= val <= range_[1])
-DataPort.register_range_checker(
-    float, lambda val, range_: range_[0] <= val <= range_[1])
+        self.val_desc.check_range(val)
+        self.val_desc.check_type(val)
 
 
 class ExecPort(NodePort):
@@ -151,24 +114,9 @@ class OutputExecPort(OutputPort, ExecPort):
 class InputDataPort(InputPort, DataPort):
     def __init__(
             self, name: str, node: "Node",
-            data_type: T.Optional[type], data_range: T.Optional[object],
-            data_default: T.Optional[T.Any] = None) -> None:
+            val_desc: T.Optional[Value] = None) -> None:
         InputPort.__init__(self, name, node)
-        DataPort.__init__(self, name, node, data_type, data_range)
-        self.default = data_default
-
-    def set_default(self, val: T.Optional[T.Any]):
-        if val is not None:
-            self.check(val)
-        self._default = val
-
-    def get_default(self) -> T.Any:
-        return self._default
-
-    default = property(
-        fget=get_default,
-        fset=set_default,
-    )
+        DataPort.__init__(self, name, node, val_desc)
 
     def get_data(self) -> T.Any:
         sig = self.signal_buffer.pop()
@@ -184,16 +132,15 @@ class InputDataPort(InputPort, DataPort):
         pre = self.lastest_signal_provider
         if (pre is not None) and isinstance(pre, OutputDataPort):
             return pre.cache
-        return self.default
+        return self.val_desc.default
 
 
 class OutputDataPort(OutputPort, DataPort):
     def __init__(
             self, name: str, node: "Node",
-            data_type: T.Optional[type],
-            data_range: T.Optional[object]) -> None:
+            val_desc: T.Optional[Value] = None) -> None:
         OutputPort.__init__(self, name, node)
-        DataPort.__init__(self, name, node, data_type, data_range)
+        DataPort.__init__(self, name, node, val_desc)
         self._cache: T.Optional[T.Any] = None
 
     async def push_data(self, data: T.Any):
@@ -220,23 +167,49 @@ class OutputDataPort(OutputPort, DataPort):
     )
 
 
-@dataclass
 class Port:
     """The blueprint of a port."""
-    name: str
-    exec: bool = False
-    data_type: T.Optional[type] = None
-    data_range: T.Optional[object] = None
-    data_default: T.Optional[object] = None
+    def __init__(
+            self, name: str, exec: bool = False,
+            type: T.Optional[type] = None,
+            range: T.Optional[object] = None,
+            default: T.Optional[object] = None,
+            **kwargs,
+            ) -> None:
+        self.name = name
+        self.exec = exec
+        self.type = type
+        self.range = range
+        self.default = default
+        self.attrs = kwargs
+
+    @classmethod
+    def from_val_desc(cls, val_desc: "Value") -> "Port":
+        port = cls(
+            name=val_desc.name,
+            type=val_desc.type,
+            range=val_desc.range,
+            default=val_desc.default,
+            **val_desc.kwargs,
+        )
+        return port
+
+    def to_val_desc(self) -> "Value":
+        val_desc = Value(
+            name=self.name,
+            type_=self.type,
+            range_=self.range,
+            default=self.default,
+            **self.attrs,
+        )
+        return val_desc
 
     def to_input_port(self, node: "Node") -> InputPort:
         port: InputPort
         if self.exec:
             port = InputExecPort(self.name, node)
         else:
-            port = InputDataPort(
-                self.name, node, self.data_type, self.data_range,
-                self.data_default)
+            port = InputDataPort(self.name, node, self.to_val_desc())
         return port
 
     def to_output_port(self, node: "Node") -> OutputPort:
@@ -244,6 +217,5 @@ class Port:
         if self.exec:
             port = OutputExecPort(self.name, node)
         else:
-            port = OutputDataPort(
-                self.name, node, self.data_type, self.data_range)
+            port = OutputDataPort(self.name, node, self.to_val_desc())
         return port

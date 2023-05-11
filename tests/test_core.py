@@ -4,7 +4,6 @@ import time
 
 from sunmao.core.node import ComputeNode
 from sunmao.core.node_port import Port
-from sunmao.core.error import TypeCheckError, RangeCheckError
 from sunmao.core.connection import Connection
 from sunmao.core.flow import Flow
 from sunmao.core.session import Session
@@ -14,11 +13,11 @@ from sunmao.core.session import Session
 def node_defs():
     class AddNode(ComputeNode):
         init_input_ports = [
-            Port("a", data_type=int, data_range=(0, 100)),
-            Port("b", data_type=int, data_range=(0, 100)),
+            Port("a", type=int, range=(0, 100)),
+            Port("b", type=int, range=(0, 100)),
         ]
         init_output_ports = [
-            Port("res", data_type=int, data_range=(0, 100))
+            Port("res", type=int, range=(0, 100))
         ]
 
         @staticmethod
@@ -27,10 +26,8 @@ def node_defs():
 
     class AddNodeDefault(AddNode):
         init_input_ports = [
-            Port("a", data_type=int, data_range=(0, 100)),
-            Port(
-                "b", data_type=int, data_range=(0, 100),
-                data_default=10),
+            Port("a", type=int, range=(0, 100)),
+            Port("b", type=int, range=(0, 100), default=10),
         ]
 
     class SquareNode(ComputeNode):
@@ -97,9 +94,9 @@ async def test_one_node_run(node_defs):
         job = await add(1, 2)
         await job.join()
         assert job.result() == 3
-        with pytest.raises(TypeCheckError):
+        with pytest.raises(TypeError):
             await add(1.0, 2)
-        with pytest.raises(RangeCheckError):
+        with pytest.raises(ValueError):
             await add(1, 101)
 
 

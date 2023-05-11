@@ -7,7 +7,7 @@ from .node_port import (
     InputDataPort, InputExecPort,
     OutputDataPort, OutputExecPort,
 )
-from .utils import CheckAttrRange, job_type_classes
+from .utils import CheckAttrRange, job_type_classes, JOB_TYPES
 
 
 if T.TYPE_CHECKING:
@@ -28,7 +28,7 @@ class Node(FlowElement):
     init_input_ports: T.List["Port"] = []
     init_output_ports: T.List["Port"] = []
 
-    default_exec_mode = "all"
+    default_exec_mode: T.Literal['all', 'any'] = "all"
     exec_mode = ExecMode()
 
     def __init__(
@@ -161,7 +161,7 @@ class Node(FlowElement):
             if not isinstance(inp, InputDataPort):
                 continue
             name_to_idx[inp.name] = idx
-            _args.append(inp.default)
+            _args.append(inp.val_desc.default)
             idx += 1
         for idx, a in enumerate(args):
             _args[idx] = a
@@ -188,13 +188,13 @@ class JobType(CheckAttrRange):
 
 class ComputeNode(Node):
 
-    default_job_type = "thread"
+    default_job_type: JOB_TYPES = "thread"
     job_type = JobType()
 
     def __init__(
             self,
             exec_mode: str = Node.default_exec_mode,
-            job_type: str = default_job_type,
+            job_type: JOB_TYPES = default_job_type,
             **kwargs) -> None:
         super().__init__(exec_mode, **kwargs)
         self.job_type = job_type  # type: ignore

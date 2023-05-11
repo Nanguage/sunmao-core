@@ -1,7 +1,7 @@
 import pytest
 import asyncio
-from sunmao.api import compute, In, Out, Outputs, Session
-from sunmao.core.error import RangeCheckError
+from sunmao.api import compute, Session
+from funcdesc import mark_input, mark_output
 
 
 @pytest.mark.asyncio
@@ -28,11 +28,12 @@ async def test_api():
 @pytest.mark.asyncio
 async def test_api_2():
     @compute
-    def EqRet(a: In[int, [0, 10]]) -> Out[int, [0, 10]]:
+    @mark_input(0, range=[0, 10])
+    def EqRet(a: int) -> int:
         return a
 
     eq = EqRet()
-    with pytest.raises(RangeCheckError):
+    with pytest.raises(ValueError):
         await eq(100)
         await Session.get_current().engine.join()
 
@@ -40,7 +41,9 @@ async def test_api_2():
 @pytest.mark.asyncio
 async def test_api_3():
     @compute
-    def Test(a: int) -> Outputs[str, Out[int, [0, 10]]]:
+    @mark_output(0, type=str)
+    @mark_output(1, type=int)
+    def Test(a: int):
         return 'ok', a
 
     t = Test()
@@ -52,7 +55,7 @@ async def test_api_3():
 @pytest.mark.asyncio
 async def test_api_4():
     @compute
-    def Square(a) -> object:
+    def Square(a: int) -> int:
         return a ** 2
 
     sq1 = Square()
