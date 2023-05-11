@@ -28,7 +28,7 @@ class Flow(SunmaoObj):
         self.session.add_flow(self)
 
     def add_obj(self, obj: FlowElement):
-        if self.obj_in(obj):
+        if obj in self:
             return
         if isinstance(obj, Node):
             self.nodes[obj.id] = obj
@@ -39,11 +39,11 @@ class Flow(SunmaoObj):
             self.other_objs[obj.id] = obj
         self._obj_ids.add(obj.id)
 
-    def obj_in(self, obj: FlowElement) -> bool:
+    def __contains__(self, obj: FlowElement) -> bool:
         return (obj.id in self._obj_ids)
 
     def remove_obj(self, obj: FlowElement):
-        if not self.obj_in(obj):
+        if not (obj in self):
             return
         if isinstance(obj, Node):
             self.nodes.pop(obj.id)

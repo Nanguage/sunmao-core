@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from sunmao.api import compute, Session
 from funcdesc import mark_input, mark_output
 
@@ -58,10 +57,27 @@ async def test_api_4():
     def Square(a: int) -> int:
         return a ** 2
 
-    sq1 = Square()
-    sq2 = Square()
-    sq3 = Square()
-    sq1 >> sq2 >> sq3
-    await sq1(2)
-    await asyncio.sleep(0.1)
-    assert sq3.O[0].cache == ((2**2)**2)**2
+    with Session() as sess:
+        sq1 = Square()
+        sq2 = Square()
+        sq3 = Square()
+        sq1 >> sq2 >> sq3
+        await sq1(2)
+        await sess.join()
+        assert sq3.O[0].cache == ((2**2)**2)**2
+
+
+@pytest.mark.asyncio
+async def test_long_chain_join():
+    @compute
+    def Inc(a: int) -> int:
+        return a + 1
+
+    with Session() as sess:
+        chain_len = 10
+        incs = [Inc() for _ in range(chain_len)]
+        for i in range(chain_len - 1):
+            incs[i] >> incs[i + 1]
+        await incs[0](0)
+        await sess.join()
+        assert incs[-1].O[0].cache == chain_len

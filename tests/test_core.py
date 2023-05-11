@@ -68,11 +68,15 @@ def test_flow(node_defs):
     Add = node_defs['add']
     add: ComputeNode = Add()
     assert isinstance(add.flow, Flow)
-    flow = Flow()
-    add1: ComputeNode = Add(flow=flow)
-    assert add1.flow is flow
+    flow1 = Flow()
+    add1: ComputeNode = Add(flow=flow1)
+    assert add1.flow is flow1
     add2: ComputeNode = Add()
-    assert add2.flow is flow
+    assert add2.flow is flow1
+    flow2 = Flow()
+    add2.flow = flow2
+    assert add2.flow is flow2
+    assert add2.id not in flow1.nodes
 
 
 def test_session():

@@ -1,6 +1,6 @@
 import typing as T
-from .base import SunmaoObj
 
+from .base import SunmaoObj
 from .flow import Flow
 from executor.engine import Engine, EngineSetting
 
@@ -55,3 +55,9 @@ class Session(SunmaoObj):
     def __exit__(self, *args):
         _set_current(self._prev_session)
         self._prev_session = None
+
+    async def join(
+            self,
+            timeout: T.Optional[float] = None,
+            time_delta: float = 0.01):
+        await self.engine.wait_async(timeout, time_delta)
