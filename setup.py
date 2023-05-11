@@ -75,7 +75,7 @@ setup(
     classifiers=classifiers,
     install_requires=get_install_requires(),
     extras_require={
-        'test': requires_test,
+        'dev': requires_test,
     },
     python_requires='>=3.8, <4',
 )
