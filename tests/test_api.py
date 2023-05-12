@@ -34,7 +34,7 @@ async def test_api_2():
     eq = EqRet()
     with pytest.raises(ValueError):
         await eq(100)
-        await Session.get_current().engine.join()
+        await Session.get_current().join()
 
 
 @pytest.mark.asyncio
@@ -47,7 +47,7 @@ async def test_api_3():
 
     t = Test()
     await t(1)
-    await Session.get_current().engine.join()
+    await Session.get_current().join()
     assert t.caches == ('ok', 1)
 
 

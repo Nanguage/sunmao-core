@@ -27,7 +27,6 @@ def compute(
         _default_job_type = default_job_type
 
         class Node(ComputeNode):
-            __name__ = target_func.__name__  # type: ignore
             __doc__ = target_func.__doc__
             init_input_ports: T.List["Port"] = input_bps
             init_output_ports: T.List["Port"] = output_bps
@@ -36,4 +35,5 @@ def compute(
             func = staticmethod(target_func)  # type: ignore
             func_desc = desc
 
+        Node.__name__ = target_func.__name__  # type: ignore
         return Node

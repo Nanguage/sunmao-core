@@ -55,7 +55,6 @@ def node_defs():
             return a**2
 
     _node_defs = {}
-
     _node_defs['add'] = AddNode
     _node_defs['add_with_default'] = AddNodeDefault
     _node_defs['square'] = SquareNode
@@ -143,7 +142,7 @@ async def test_node_connect(node_defs):
         assert len(add1.output_ports[0].connections) == 2
         assert len(add2.input_ports[0].connections) == 2
         await add1(1, 2)
-        await sess.engine.join()
+        await sess.join()
         assert add2.output_ports[0].cache == 6
         add0.output_ports[0].disconnect(add2.input_ports[0])
         Square = node_defs['square']
@@ -152,7 +151,7 @@ async def test_node_connect(node_defs):
         # chain connect
         add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
         await add0(1, 1)
-        await sess.engine.join()
+        await sess.join()
         assert sq2.output_ports[0].cache == 16
 
 
@@ -166,17 +165,17 @@ async def test_exec_mode(node_defs):
         add0.connect_with(add2, 0, 0)
         add1.connect_with(add2, 0, 1)
         await add0(1, 1)
-        await sess.engine.join()
+        await sess.join()
         assert add2.output_ports[0].cache is None
         await add1(1, 1)
-        await sess.engine.join()
+        await sess.join()
         assert add2.output_ports[0].cache == 4
         await add0(2, 2)
-        await sess.engine.join()
+        await sess.join()
         assert add2.output_ports[0].cache == 4
         add2.exec_mode = 'any'
         await add0(2, 2)
-        await sess.engine.join()
+        await sess.join()
         assert add2.output_ports[0].cache == 6
         add2.clear_port_caches()
         assert add2.output_ports[0].cache is None
