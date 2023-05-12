@@ -8,6 +8,7 @@ from .node_port import (
     OutputDataPort, OutputExecPort,
 )
 from .utils import CheckAttrRange, job_type_classes, JOB_TYPES
+from .utils import logger
 
 
 if T.TYPE_CHECKING:
@@ -39,6 +40,9 @@ class Node(FlowElement):
         super().__init__(**kwargs)
         self.setup_ports()
         self.exec_mode = exec_mode
+
+    def __repr__(self) -> str:
+        return f"<Node type={self.__class__.__name__} id={self.id}>"
 
     def setup_ports(self):
         self.input_ports = [
@@ -77,10 +81,12 @@ class Node(FlowElement):
         ]
         if self.exec_mode == "all":
             if all(bufs_has_signal):
+                logger.info(f"{self} activated.")
                 args = self.consume_all_ports()
                 await self.run(*args)
         else:
             if any(bufs_has_signal):
+                logger.info(f"{self} activated.")
                 args = self.consume_ports_with_cache()
                 await self.run(*args)
 
@@ -198,6 +204,9 @@ class ComputeNode(Node):
             **kwargs) -> None:
         super().__init__(exec_mode, **kwargs)
         self.job_type = job_type  # type: ignore
+
+    def __repr__(self) -> str:
+        return f"<ComputeNode type={self.__class__.__name__} id={self.id}>"
 
     @staticmethod
     async def callback(flow_id: str, node_id: str, res):
