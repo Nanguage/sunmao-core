@@ -4,6 +4,7 @@ from executor.engine.job import Job
 
 from .base import FlowElement
 from .node_port import (
+    InputPort, OutputPort,
     InputDataPort, InputExecPort,
     OutputDataPort, OutputExecPort,
 )
@@ -35,11 +36,23 @@ class Node(FlowElement):
     def __init__(
             self,
             exec_mode: str = default_exec_mode,
+            name: T.Optional[str] = None,
             **kwargs
             ) -> None:
         super().__init__(**kwargs)
         self.setup_ports()
         self.exec_mode = exec_mode
+        if name is None:
+            name = self._get_name()
+        self.name = name
+
+    def _get_name(self) -> str:
+        nodes = self.flow.nodes
+        cls = self.__class__
+        same_class_nodes = [
+            n for n in nodes.values() if isinstance(n, cls)
+        ]
+        return f"{cls.__name__}_{len(same_class_nodes) - 1}"
 
     def __repr__(self) -> str:
         return f"<Node type={self.__class__.__name__} id={self.id}>"
@@ -176,6 +189,24 @@ class Node(FlowElement):
             _args[idx] = a
         return _args
 
+    @property
+    def free_input_ports(self) -> T.List["InputPort"]:
+        """Return all input ports that not connected."""
+        ports = []
+        for inp in self.input_ports:
+            if len(inp.connections) == 0:
+                ports.append(inp)
+        return ports
+
+    @property
+    def free_output_ports(self) -> T.List["OutputPort"]:
+        """Return all output ports that not connected."""
+        ports = []
+        for outp in self.output_ports:
+            if len(outp.connections) == 0:
+                ports.append(outp)
+        return ports
+
     async def __call__(self, *args, **kwargs):
         _args = list(reversed(self._get_call_args(*args, **kwargs)))
         for inp in self.input_ports:
@@ -200,9 +231,10 @@ class ComputeNode(Node):
     def __init__(
             self,
             exec_mode: str = Node.default_exec_mode,
+            name: T.Optional[str] = None,
             job_type: JOB_TYPES = default_job_type,
             **kwargs) -> None:
-        super().__init__(exec_mode, **kwargs)
+        super().__init__(exec_mode=exec_mode, name=name, **kwargs)
         self.job_type = job_type  # type: ignore
 
     def __repr__(self) -> str:

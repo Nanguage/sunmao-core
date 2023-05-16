@@ -210,3 +210,30 @@ def test_attr_range(node_defs):
         sq1.exec_mode = "aaa"
     with pytest.raises(RangeCheckError):
         sq1.job_type = "aaa"
+
+
+def test_node_name(node_defs):
+    flow = Flow()
+    Add = node_defs['add']
+    add1: ComputeNode = Add(name="add1")
+    assert add1.name == "add1"
+    assert len(flow.nodes) == 1
+    add2: ComputeNode = Add()
+    assert add2.name == "AddNode_1"
+
+
+@pytest.mark.asyncio
+async def test_flow_call(node_defs):
+    flow = Flow()
+    Add = node_defs['add']
+    Square = node_defs['square']
+    add1: ComputeNode = Add(name="add1")
+    sq1: ComputeNode = Square(name="sq1")
+    sq2: ComputeNode = Square(name="sq2")
+    sq1.connect_with(add1, 0, 0)
+    sq2.connect_with(add1, 0, 1)
+    res = await flow({
+        "sq1.a": 1,
+        "sq2.a": 2,
+    })
+    assert res == {'add1.res': 5}
