@@ -11,6 +11,7 @@ def compute(
         target_func: T.Optional[T.Callable] = None,
         default_exec_mode: T.Literal['all', 'any'] = 'all',
         default_job_type: JOB_TYPES = 'thread',
+        save_output_cache: bool = True,
         ) -> T.Type[ComputeNode]:
     """Decorator for create ComputeNode from a callable object."""
     if target_func is None:
@@ -18,11 +19,14 @@ def compute(
             compute,
             default_exec_mode=default_exec_mode,
             default_job_type=default_job_type,
+            save_output_cache=save_output_cache,
         )  # type: ignore
     else:
         desc = parse_func(target_func)
         input_bps = [Port.from_val_desc(v) for v in desc.inputs]
         output_bps = [Port.from_val_desc(v) for v in desc.outputs]
+        for bp in output_bps:
+            bp.save_cache = save_output_cache
         _default_exec_mode = default_exec_mode
         _default_job_type = default_job_type
 

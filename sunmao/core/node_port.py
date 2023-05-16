@@ -1,4 +1,5 @@
 import typing as T
+from datetime import datetime
 from collections import deque
 from funcdesc.desc import Value
 
@@ -137,15 +138,18 @@ class InputDataPort(InputPort, DataPort):
 
 class OutputDataPort(OutputPort, DataPort):
     def __init__(
-            self, name: str, node: "Node",
+            self, name: str, node: "Node", save_cache: bool = True,
             val_desc: T.Optional[Value] = None) -> None:
         OutputPort.__init__(self, name, node)
         DataPort.__init__(self, name, node, val_desc)
+        self.save_cache = save_cache
+        self.last_cache_time: T.Optional[datetime] = None
         self._cache: T.Optional[T.Any] = None
 
     async def push_data(self, data: T.Any):
         self.check(data)
-        self.set_cache(data)
+        if self.save_cache:
+            self.set_cache(data)
         for conn in self.connections:
             conn.target.put_signal(
                 provider=self, data=data)
@@ -153,6 +157,7 @@ class OutputDataPort(OutputPort, DataPort):
 
     def set_cache(self, data: T.Any):
         self.check(data)
+        self.last_cache_time = datetime.now()
         self._cache = data
 
     def get_cache(self) -> T.Any:
@@ -168,12 +173,28 @@ class OutputDataPort(OutputPort, DataPort):
 
 
 class Port:
-    """The blueprint of a port."""
+    """The blueprint of a port.
+
+    Args:
+        name (str): The name of the port.
+        exec (bool, optional): Whether the port is an exec port.
+            Defaults to False.
+        type (T.Optional[type], optional): The type of the port.
+            Defaults to None.
+        range (T.Optional[object], optional): The range of the port.
+            Defaults to None.
+        default (T.Optional[object], optional): The default value of the port.
+            Defaults to None.
+        save_cache (bool, optional): Whether the port should save cache.
+            Defaults to True. Only available for output ports.
+        **kwargs: Other attributes of the port. Used for create a Value object.
+    """
     def __init__(
             self, name: str, exec: bool = False,
             type: T.Optional[type] = None,
             range: T.Optional[object] = None,
             default: T.Optional[object] = None,
+            save_cache: bool = True,
             **kwargs,
             ) -> None:
         self.name = name
@@ -181,6 +202,7 @@ class Port:
         self.type = type
         self.range = range
         self.default = default
+        self.save_cache = save_cache
         self.attrs = kwargs
 
     @classmethod
@@ -217,5 +239,7 @@ class Port:
         if self.exec:
             port = OutputExecPort(self.name, node)
         else:
-            port = OutputDataPort(self.name, node, self.to_val_desc())
+            port = OutputDataPort(
+                self.name, node, self.save_cache,
+                self.to_val_desc())
         return port

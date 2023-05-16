@@ -237,3 +237,29 @@ async def test_flow_call(node_defs):
         "sq2.a": 2,
     })
     assert res == {'add1.res': 5}
+
+
+@pytest.mark.asyncio
+async def test_node_output_port_cache():
+    class Exchange(ComputeNode):
+        init_input_ports = [
+            Port("a"),
+            Port("b"),
+        ]
+        init_output_ports = [
+            Port("b", save_cache=False),
+            Port("a", save_cache=True),
+        ]
+
+        @staticmethod
+        def func(a, b):
+            return b, a
+
+    ex1 = Exchange()
+    ex2 = Exchange()
+    ex1.connect_with(ex2, 0, 0)
+    ex1.connect_with(ex2, 1, 1)
+    await ex1(1, 2)
+    await Session.get_current().join()
+    assert ex2.output_ports[0].cache is None
+    assert ex2.output_ports[1].cache == 2

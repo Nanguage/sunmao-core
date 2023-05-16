@@ -81,3 +81,16 @@ async def test_long_chain_join():
         await incs[0](0)
         await sess.join()
         assert incs[-1].O[0].cache == chain_len
+
+
+@pytest.mark.asyncio
+async def test_compute_node_output_cache():
+    @compute(save_output_cache=False)
+    def Inc(a: int) -> int:
+        return a + 1
+
+    with Session() as sess:
+        inc = Inc()
+        await inc(0)
+        await sess.join()
+        assert inc.O[0].cache is None
