@@ -14,6 +14,7 @@ from .utils import logger
 
 if T.TYPE_CHECKING:
     from .node_port import Port
+    from .flow import Flow
 
 
 class ExecMode(CheckAttrRange):
@@ -26,6 +27,24 @@ class ExecMode(CheckAttrRange):
 
 
 class Node(FlowElement):
+    """Base class of all nodes.
+
+    Args:
+        exec_mode (str, optional): Execution mode of the node.
+            If "all", the node will be activated only when all input ports
+            has signal. If "any", the node will be activated when any input
+            port has signal. Defaults to "all".
+        name (str, optional): Name of the node. Defaults to None.
+        flow (Flow, optional): Flow that the node belongs to.
+        **kwargs: Other attributes of the node.
+
+    Attributes:
+        input_ports (List[InputPort]): Input ports of the node.
+        output_ports (List[OutputPort]): Output ports of the node.
+        exec_mode (str): Execution mode of the node.
+        name (str): Name of the node.
+        jobs_id (List[str]): Ids of all jobs that the node submitted.
+    """
 
     init_input_ports: T.List["Port"] = []
     init_output_ports: T.List["Port"] = []
@@ -37,14 +56,26 @@ class Node(FlowElement):
             self,
             exec_mode: str = default_exec_mode,
             name: T.Optional[str] = None,
+            flow: T.Optional["Flow"] = None,
             **kwargs
             ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(flow=flow)
         self.setup_ports()
         self.exec_mode = exec_mode
         if name is None:
             name = self._get_name()
         self.name = name
+        self.jobs_id: T.List[str] = []
+        self.attrs = kwargs
+
+    def copy(self, name: T.Optional[str] = None) -> "Node":
+        """Return a copy of the node."""
+        new_name = self.name + "_copy" if name is None else name
+        node = self.__class__(
+            exec_mode=self.exec_mode,
+            name=new_name,
+        )
+        return node
 
     def _get_name(self) -> str:
         nodes = self.flow.nodes
@@ -237,6 +268,11 @@ class ComputeNode(Node):
         super().__init__(exec_mode=exec_mode, name=name, **kwargs)
         self.job_type = job_type  # type: ignore
 
+    def copy(self, name: T.Optional[str] = None) -> "ComputeNode":
+        node: ComputeNode = super().copy(name=name)  # type: ignore
+        node.job_type = self.job_type
+        return node
+
     def __repr__(self) -> str:
         return f"<ComputeNode type={self.__class__.__name__} id={self.id}>"
 
@@ -277,6 +313,7 @@ class ComputeNode(Node):
             error_callback=error_callback,
         )
         await self.session.engine.submit_async(job)
+        self.jobs_id.append(job.id)
         return job
 
     async def __call__(self, *args, **kwargs) -> "Job":

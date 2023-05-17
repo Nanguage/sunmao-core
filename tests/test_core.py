@@ -266,3 +266,15 @@ async def test_node_output_port_cache():
     await Session.get_current().join()
     assert ex2.output_ports[0].cache is None
     assert ex2.output_ports[1].cache == 2
+
+
+def test_node_copy(node_defs):
+    Add = node_defs['add']
+    add1: ComputeNode = Add(name="add1", exec_mode="any")
+    add2 = add1.copy()
+    assert add2.name == "add1_copy"
+    add3 = add1.copy(name="add3")
+    assert add3.name == "add3"
+    assert add3.id != add1.id
+    assert add3.flow is add1.flow
+    assert add3.exec_mode == add1.exec_mode
