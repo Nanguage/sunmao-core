@@ -26,8 +26,6 @@ class Session(SunmaoObj):
             engine_setting: T.Optional[EngineSetting] = None,
             ) -> None:
         super().__init__()
-        if _get_current() is None:
-            _set_current(self)
         self.flows: T.Dict[str, Flow] = {}
         self._current_flow: T.Optional[Flow] = None
         self.engine = Engine(setting=engine_setting)
@@ -51,13 +49,13 @@ class Session(SunmaoObj):
     def add_flow(self, flow: Flow):
         assert isinstance(flow, Flow)
         self.flows[flow.id] = flow
-        self.current_flow = flow
 
     @classmethod
     def get_current(cls) -> "Session":
         sess = _get_current()
         if sess is None:
             sess = cls()
+            _set_current(sess)
         return sess
 
     def __enter__(self):

@@ -71,6 +71,14 @@ class Flow(SunmaoObj):
             ports.extend(node.free_output_ports)
         return ports
 
+    def __enter__(self):
+        self._prev_flow = self.session.current_flow
+        self.session.current_flow = self
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.session.current_flow = self._prev_flow
+
     async def __call__(self, inputs: dict) -> dict:
         """Intreface for execute the flow."""
         free_input_nodes: T.Set[Node] = set()

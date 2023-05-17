@@ -67,15 +67,18 @@ def test_flow(node_defs):
     Add = node_defs['add']
     add: ComputeNode = Add()
     assert isinstance(add.flow, Flow)
-    flow1 = Flow()
-    add1: ComputeNode = Add(flow=flow1)
-    assert add1.flow is flow1
-    add2: ComputeNode = Add()
-    assert add2.flow is flow1
-    flow2 = Flow()
-    add2.flow = flow2
-    assert add2.flow is flow2
-    assert add2.id not in flow1.nodes
+    with Flow() as flow1:
+        add1: ComputeNode = Add(flow=flow1)
+        assert add1.flow is flow1
+        add2: ComputeNode = Add()
+        assert add2.flow is flow1
+    assert add.session.current_flow is add.flow
+    with Flow() as flow2:
+        add3: ComputeNode = Add()
+        assert add3.flow is flow2
+        add2.flow = flow2
+        assert add2.flow is flow2
+        assert add2.id not in flow1.nodes
 
 
 def test_session():
@@ -213,30 +216,30 @@ def test_attr_range(node_defs):
 
 
 def test_node_name(node_defs):
-    flow = Flow()
-    Add = node_defs['add']
-    add1: ComputeNode = Add(name="add1")
-    assert add1.name == "add1"
-    assert len(flow.nodes) == 1
-    add2: ComputeNode = Add()
-    assert add2.name == "AddNode_1"
+    with Flow() as flow:
+        Add = node_defs['add']
+        add1: ComputeNode = Add(name="add1")
+        assert add1.name == "add1"
+        assert len(flow.nodes) == 1
+        add2: ComputeNode = Add()
+        assert add2.name == "AddNode_1"
 
 
 @pytest.mark.asyncio
 async def test_flow_call(node_defs):
-    flow = Flow()
-    Add = node_defs['add']
-    Square = node_defs['square']
-    add1: ComputeNode = Add(name="add1")
-    sq1: ComputeNode = Square(name="sq1")
-    sq2: ComputeNode = Square(name="sq2")
-    sq1.connect_with(add1, 0, 0)
-    sq2.connect_with(add1, 0, 1)
-    res = await flow({
-        "sq1.a": 1,
-        "sq2.a": 2,
-    })
-    assert res == {'add1.res': 5}
+    with Flow() as flow:
+        Add = node_defs['add']
+        Square = node_defs['square']
+        add1: ComputeNode = Add(name="add1")
+        sq1: ComputeNode = Square(name="sq1")
+        sq2: ComputeNode = Square(name="sq2")
+        sq1.connect_with(add1, 0, 0)
+        sq2.connect_with(add1, 0, 1)
+        res = await flow({
+            "sq1.a": 1,
+            "sq2.a": 2,
+        })
+        assert res == {'add1.res': 5}
 
 
 @pytest.mark.asyncio
