@@ -29,20 +29,18 @@ class Session(SunmaoObj):
         self.flows: T.Dict[str, Flow] = {}
         self._current_flow: T.Optional[Flow] = None
         self.engine = Engine(setting=engine_setting)
+        self._env_flow: T.Optional[Flow] = None
 
     def __repr__(self) -> str:
         return f"<Session id={self.id}>"
 
     @property
-    def current_flow(self) -> Flow:
-        if self._current_flow is None:
-            self._current_flow = Flow(session=self)
-            logger.info(f"{self}'s current flow: {self._current_flow}")
+    def current_flow(self) -> T.Optional[Flow]:
         return self._current_flow
 
     @current_flow.setter
-    def current_flow(self, flow: Flow):
-        assert isinstance(flow, Flow)
+    def current_flow(self, flow: T.Optional[Flow]):
+        assert isinstance(flow, Flow) or flow is None
         self._current_flow = flow
         logger.info(f"{self}'s current flow: {flow}")
 

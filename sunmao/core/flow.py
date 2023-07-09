@@ -72,12 +72,33 @@ class Flow(SunmaoObj):
         return ports
 
     def __enter__(self):
-        self._prev_flow = self.session.current_flow
+        self._prev_flow = self.session._env_flow
         self.session.current_flow = self
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.session.current_flow = self._prev_flow
+
+    def copy(self) -> "Flow":
+        """Copy the flow."""
+        old_id2new_node: T.Dict[str, "Node"] = {}
+        flow = Flow()
+        for node in list(self.nodes.values()):
+            new_node = node.copy()
+            new_node.flow = flow
+            old_id2new_node[node.id] = new_node
+            flow.add_obj(new_node)
+        for conn in list(self.connections.values()):
+            old_src_node_id = conn.source.node.id
+            old_src_index = conn.source.index
+            new_src_node = old_id2new_node[old_src_node_id]
+            new_src_port = new_src_node.output_ports[old_src_index]
+            old_dst_node_id = conn.target.node.id
+            old_dst_index = conn.target.index
+            new_dst_node = old_id2new_node[old_dst_node_id]
+            new_dst_port = new_dst_node.input_ports[old_dst_index]
+            new_src_port.connect_with(new_dst_port)
+        return flow
 
     async def __call__(self, inputs: dict) -> dict:
         """Intreface for execute the flow."""

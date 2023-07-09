@@ -3,7 +3,6 @@ from datetime import datetime
 from collections import deque
 from funcdesc.desc import Value
 
-from .base import FlowElement
 from .connection import Connection
 
 
@@ -11,19 +10,13 @@ if T.TYPE_CHECKING:
     from .node import Node
 
 
-class ActivateSignal(FlowElement):
-    def __init__(
-            self, data: T.Any = None,
-            **kwargs):
-        super().__init__(**kwargs)
+class ActivateSignal():
+    def __init__(self, data: T.Any = None):
         self.data = data
 
 
-class NodePort(FlowElement):
-    def __init__(
-            self, name: str, node: "Node",
-            **kwargs) -> None:
-        super().__init__(**kwargs)
+class NodePort():
+    def __init__(self, name: str, node: "Node") -> None:
         self.name = name
         self.node = node
         self.connections: T.Set["Connection"] = set()
@@ -34,6 +27,10 @@ class InputPort(NodePort):
         NodePort.__init__(self, name, node)
         self.signal_buffer: T.Deque[ActivateSignal] = deque([])
         self.lastest_signal_provider: T.Optional[OutputPort] = None
+
+    @property
+    def index(self) -> int:
+        return self.node.input_ports.index(self)
 
     def put_signal(
             self, provider: T.Optional["OutputPort"] = None,
@@ -59,14 +56,25 @@ class InputPort(NodePort):
 class OutputPort(NodePort):
     def __init__(self, name: str, node: "Node") -> None:
         NodePort.__init__(self, name, node)
+        self.callbacks: T.List[T.Callable[[T.Any], None]] = []
 
-    async def activate_successors(self):
+    @property
+    def index(self) -> int:
+        return self.node.output_ports.index(self)
+
+    def register_callback(self, func: T.Callable[[T.Any], None]):
+        self.callbacks.append(func)
+
+    async def push_signal(self, data=None):
+        for callback in self.callbacks:
+            callback(data)
         for s in self.successors:
-            s.put_signal(provider=self)
+            s.put_signal(provider=self, data=data)
             await s.node.activate()
 
     def connect_with(self, other: InputPort):
-        conn = Connection(self, other)
+        assert self.node.flow is other.node.flow
+        conn = Connection(self, other, flow=self.node.flow)
         self.connections.add(conn)
         other.connections.add(conn)
 
@@ -146,14 +154,11 @@ class OutputDataPort(OutputPort, DataPort):
         self.last_cache_time: T.Optional[datetime] = None
         self._cache: T.Optional[T.Any] = None
 
-    async def push_data(self, data: T.Any):
+    async def push_signal(self, data=None):
         self.check(data)
         if self.save_cache:
             self.set_cache(data)
-        for conn in self.connections:
-            conn.target.put_signal(
-                provider=self, data=data)
-            await conn.target.node.activate()
+        await super().push_signal(data)
 
     def set_cache(self, data: T.Any):
         self.check(data)

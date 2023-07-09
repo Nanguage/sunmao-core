@@ -1,5 +1,5 @@
 import pytest
-from sunmao.api import compute, Session
+from sunmao.api import compute, Session, Flow
 from funcdesc import mark_input, mark_output
 
 
@@ -13,11 +13,12 @@ async def test_api():
     def Square(a: int) -> int:
         return a ** 2
 
-    add = Add()
-    sq1 = Square()
-    sq2 = Square()
-    sq1 >> add.I[0]
-    sq2 >> add.I[1]
+    with Flow():
+        add = Add()
+        sq1 = Square()
+        sq2 = Square()
+        sq1 >> add.I[0]
+        sq2 >> add.I[1]
     await sq1(10)
     await sq2(10)
     await Session.get_current().engine.join()
@@ -31,7 +32,7 @@ async def test_api_2():
     def EqRet(a: int) -> int:
         return a
 
-    eq = EqRet()
+    eq = EqRet(flow=Flow())
     with pytest.raises(ValueError):
         await eq(100)
         await Session.get_current().join()
@@ -45,7 +46,7 @@ async def test_api_3():
     def Test(a: int):
         return 'ok', a
 
-    t = Test()
+    t = Test(flow=Flow())
     await t(1)
     await Session.get_current().join()
     assert t.caches == ('ok', 1)
@@ -57,13 +58,13 @@ async def test_api_4():
     def Square(a: int) -> int:
         return a ** 2
 
-    with Session() as sess:
+    with Flow() as flow:
         sq1 = Square()
         sq2 = Square()
         sq3 = Square()
         sq1 >> sq2 >> sq3
         await sq1(2)
-        await sess.join()
+        await flow.session.join()
         assert sq3.O[0].cache == ((2**2)**2)**2
 
 
@@ -73,13 +74,13 @@ async def test_long_chain_join():
     def Inc(a: int) -> int:
         return a + 1
 
-    with Session() as sess:
+    with Flow() as flow:
         chain_len = 10
         incs = [Inc() for _ in range(chain_len)]
         for i in range(chain_len - 1):
             incs[i] >> incs[i + 1]
         await incs[0](0)
-        await sess.join()
+        await flow.session.join()
         assert incs[-1].O[0].cache == chain_len
 
 
@@ -89,8 +90,8 @@ async def test_compute_node_output_cache():
     def Inc(a: int) -> int:
         return a + 1
 
-    with Session() as sess:
+    with Flow() as flow:
         inc = Inc()
         await inc(0)
-        await sess.join()
+        await flow.session.join()
         assert inc.O[0].cache is None

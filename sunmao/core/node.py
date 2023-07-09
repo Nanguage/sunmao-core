@@ -45,6 +45,7 @@ class Node(FlowElement):
         name (str): Name of the node.
         jobs_id (List[str]): Ids of all jobs that the node submitted.
     """
+    _instances_count = 0
 
     init_input_ports: T.List["Port"] = []
     init_output_ports: T.List["Port"] = []
@@ -70,7 +71,7 @@ class Node(FlowElement):
 
     def copy(self, name: T.Optional[str] = None) -> "Node":
         """Return a copy of the node."""
-        new_name = self.name + "_copy" if name is None else name
+        new_name = self.name if name is None else name
         node = self.__class__(
             exec_mode=self.exec_mode,
             name=new_name,
@@ -78,12 +79,12 @@ class Node(FlowElement):
         return node
 
     def _get_name(self) -> str:
-        nodes = self.flow.nodes
+        """Return a name for the node."""
         cls = self.__class__
-        same_class_nodes = [
-            n for n in nodes.values() if isinstance(n, cls)
-        ]
-        return f"{cls.__name__}_{len(same_class_nodes) - 1}"
+        count = cls._instances_count
+        name = f"{cls.__name__}_{count}"
+        cls._instances_count += 1
+        return name
 
     def __repr__(self) -> str:
         return f"<Node type={self.__class__.__name__} id={self.id}>"
@@ -114,10 +115,7 @@ class Node(FlowElement):
             p.cache for p in self.output_ports
             if isinstance(p, OutputDataPort)
         ])
-        if len(caches) > 1:
-            return caches
-        else:
-            return caches[0]
+        return caches
 
     async def activate(self):
         bufs_has_signal = [
@@ -172,10 +170,10 @@ class Node(FlowElement):
         """Set the cache of output port with index `idx` to `data`."""
         port = self.output_ports[idx]
         if isinstance(port, OutputDataPort):
-            await port.push_data(data)
+            await port.push_signal(data=data)
         else:
             assert isinstance(port, OutputExecPort)
-            await port.activate_successors()
+            await port.push_signal()
 
     async def set_outputs(self, res: T.Union[T.Tuple, T.Any]):
         if isinstance(res, tuple):
@@ -288,6 +286,8 @@ class ComputeNode(Node):
         print(str(e))
 
     async def run(self, *args) -> "Job":
+        if self.flow is None:
+            raise RuntimeError("Node not in a flow.")
         job_cls: T.Type[Job]
         job_cls = job_type_classes[self.job_type]
         flow_id = self.flow.id

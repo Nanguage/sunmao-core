@@ -1,6 +1,7 @@
 import typing as T
 import pytest
 import time
+import asyncio
 
 from sunmao.core.node import ComputeNode
 from sunmao.core.node_port import Port
@@ -66,19 +67,26 @@ def node_defs():
 def test_flow(node_defs):
     Add = node_defs['add']
     add: ComputeNode = Add()
-    assert isinstance(add.flow, Flow)
-    with Flow() as flow1:
-        add1: ComputeNode = Add(flow=flow1)
-        assert add1.flow is flow1
-        add2: ComputeNode = Add()
-        assert add2.flow is flow1
-    assert add.session.current_flow is add.flow
-    with Flow() as flow2:
-        add3: ComputeNode = Add()
-        assert add3.flow is flow2
-        add2.flow = flow2
-        assert add2.flow is flow2
-        assert add2.id not in flow1.nodes
+    assert add.flow is None
+    with Session() as sess:
+        with Flow() as flow1:
+            add1: ComputeNode = Add(flow=flow1)
+            assert add1.flow is flow1
+            add2: ComputeNode = Add()
+            assert add2.flow is flow1
+            assert add1.id in flow1.nodes
+            assert add2.id in flow1.nodes
+        assert sess.current_flow is None
+        with Flow() as flow2:
+            add3: ComputeNode = Add()
+            assert add3.flow is flow2
+            add2.flow = flow2
+            assert add2.flow is flow2
+            assert add2.id not in flow1.nodes
+        flow3 = Flow()
+        sess.current_flow = flow3
+        add4: ComputeNode = Add()
+        assert add4.flow is flow3
 
 
 def test_session():
@@ -94,27 +102,27 @@ def test_session():
 
 @pytest.mark.asyncio
 async def test_one_node_run(node_defs):
-    with Session():
-        Add: T.Type[ComputeNode] = node_defs['add']
+    Add: T.Type[ComputeNode] = node_defs['add']
+    with Flow():
         add: ComputeNode = Add(job_type='local')
-        job = await add(1, 2)
-        await job.join()
-        assert job.result() == 3
-        with pytest.raises(TypeError):
-            await add(1.0, 2)
-        with pytest.raises(ValueError):
-            await add(1, 101)
+    job = await add(1, 2)
+    await job.join()
+    assert job.result() == 3
+    with pytest.raises(TypeError):
+        await add(1.0, 2)
+    with pytest.raises(ValueError):
+        await add(1, 101)
 
 
 @pytest.mark.asyncio
 async def test_job_join(node_defs):
     Add = node_defs['add']
-    with Session():
-        for j_type in ("local", "thread", "process"):
-            add: ComputeNode = Add(job_type=j_type)
-            job = await add(1, 2)
-            await job.join()
-            assert job.result() == 3
+    flow1 = Flow()
+    for j_type in ("local", "thread", "process"):
+        add: ComputeNode = Add(job_type=j_type, flow=flow1)
+        job = await add(1, 2)
+        await job.join()
+        assert job.result() == 3
 
 
 def test_conn_in_op(node_defs):
@@ -135,13 +143,14 @@ def test_conn_in_op(node_defs):
 async def test_node_connect(node_defs):
     Add = node_defs['add']
     with Session() as sess:
-        add0: ComputeNode = Add(job_type="local")
-        add1: ComputeNode = Add(job_type="local")
-        add2: ComputeNode = Add(job_type="local")
-        add0.connect_with(add2, 0, 0)
-        add1.connect_with(add2, 0, 0)
-        add1.connect_with(add2, 0, 0)  # repeat connect
-        add1.connect_with(add2, 0, 1)
+        with Flow() as flow1:
+            add0: ComputeNode = Add(job_type="local")
+            add1: ComputeNode = Add(job_type="local")
+            add2: ComputeNode = Add(job_type="local")
+            add0.connect_with(add2, 0, 0)
+            add1.connect_with(add2, 0, 0)
+            add1.connect_with(add2, 0, 0)  # repeat connect
+            add1.connect_with(add2, 0, 1)
         assert len(add1.output_ports[0].connections) == 2
         assert len(add2.input_ports[0].connections) == 2
         await add1(1, 2)
@@ -149,10 +158,11 @@ async def test_node_connect(node_defs):
         assert add2.output_ports[0].cache == 6
         add0.output_ports[0].disconnect(add2.input_ports[0])
         Square = node_defs['square']
-        sq1: ComputeNode = Square(job_type="local")
-        sq2: ComputeNode = Square(job_type="local")
-        # chain connect
-        add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
+        with flow1:
+            sq1: ComputeNode = Square(job_type="local")
+            sq2: ComputeNode = Square(job_type="local")
+            # chain connect
+            add0.connect_with(sq1, 0, 0).connect_with(sq2, 0, 0)
         await add0(1, 1)
         await sess.join()
         assert sq2.output_ports[0].cache == 16
@@ -162,11 +172,12 @@ async def test_node_connect(node_defs):
 async def test_exec_mode(node_defs):
     with Session() as sess:
         Add = node_defs['add']
-        add0: ComputeNode = Add(job_type="local")
-        add1: ComputeNode = Add(job_type="local")
-        add2: ComputeNode = Add(job_type="local")
-        add0.connect_with(add2, 0, 0)
-        add1.connect_with(add2, 0, 1)
+        with Flow():
+            add0: ComputeNode = Add(job_type="local")
+            add1: ComputeNode = Add(job_type="local")
+            add2: ComputeNode = Add(job_type="local")
+            add0.connect_with(add2, 0, 0)
+            add1.connect_with(add2, 0, 1)
         await add0(1, 1)
         await sess.join()
         assert add2.output_ports[0].cache is None
@@ -187,7 +198,8 @@ async def test_exec_mode(node_defs):
 @pytest.mark.asyncio
 async def test_port_default(node_defs):
     AddDefault = node_defs['add_with_default']
-    add1: ComputeNode = AddDefault(job_type="local")
+    flow = Flow()
+    add1: ComputeNode = AddDefault(job_type="local", flow=flow)
     job = await add1(1)
     await job.join()
     assert add1.output_ports[0].cache == 11
@@ -197,7 +209,7 @@ async def test_port_default(node_defs):
     job = await add1(b=5, a=1)
     await job.join()
     assert add1.output_ports[0].cache == 6
-    add2: ComputeNode = AddDefault(job_type="local")
+    add2: ComputeNode = AddDefault(job_type="local", flow=flow)
     add2.exec_mode = 'any'
     add1.connect_with(add2, 0, 0)
     job = await add1(2, 2)
@@ -222,7 +234,7 @@ def test_node_name(node_defs):
         assert add1.name == "add1"
         assert len(flow.nodes) == 1
         add2: ComputeNode = Add()
-        assert add2.name == "AddNode_1"
+        assert add2.name == "AddNode_0"
 
 
 @pytest.mark.asyncio
@@ -240,6 +252,23 @@ async def test_flow_call(node_defs):
             "sq2.a": 2,
         })
         assert res == {'add1.res': 5}
+        res2 = await flow({
+            "sq1.a": 2,
+            "sq2.a": 3,
+        })
+        assert res2 == {'add1.res': 13}
+    flow1 = flow.copy()
+    a = flow1({
+        "sq1.a": 1,
+        "sq2.a": 1,
+    })
+    flow2 = flow.copy()
+    b = flow2({
+        "sq1.a": 2,
+        "sq2.a": 2,
+    })
+    res = await asyncio.gather(a, b)
+    assert res == [{'add1.res': 2}, {'add1.res': 8}]
 
 
 @pytest.mark.asyncio
@@ -258,10 +287,11 @@ async def test_node_output_port_cache():
         def func(a, b):
             return b, a
 
-    ex1 = Exchange()
-    ex2 = Exchange()
-    ex1.connect_with(ex2, 0, 0)
-    ex1.connect_with(ex2, 1, 1)
+    with Flow():
+        ex1 = Exchange()
+        ex2 = Exchange()
+        ex1.connect_with(ex2, 0, 0)
+        ex1.connect_with(ex2, 1, 1)
     await ex1(1, 2)
     await Session.get_current().join()
     assert ex2.output_ports[0].cache is None
@@ -272,7 +302,7 @@ def test_node_copy(node_defs):
     Add = node_defs['add']
     add1: ComputeNode = Add(name="add1", exec_mode="any")
     add2 = add1.copy()
-    assert add2.name == "add1_copy"
+    assert add2.name == "add1"
     add3 = add1.copy(name="add3")
     assert add3.name == "add3"
     assert add3.id != add1.id
