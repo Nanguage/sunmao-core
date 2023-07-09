@@ -42,7 +42,7 @@ class Session(SunmaoObj):
     def current_flow(self, flow: T.Optional[Flow]):
         assert isinstance(flow, Flow) or flow is None
         self._current_flow = flow
-        logger.info(f"{self}'s current flow: {flow}")
+        logger.debug(f"{self}'s current flow: {flow}")
 
     def add_flow(self, flow: Flow):
         assert isinstance(flow, Flow)

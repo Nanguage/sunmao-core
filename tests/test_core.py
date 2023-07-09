@@ -308,3 +308,19 @@ def test_node_copy(node_defs):
     assert add3.id != add1.id
     assert add3.flow is add1.flow
     assert add3.exec_mode == add1.exec_mode
+
+
+@pytest.mark.asyncio
+async def test_port_callback(node_defs):
+    Add = node_defs['add']
+
+    def assert_res(x):
+        assert x == 3
+
+    with Flow() as flow:
+        add = Add()
+        out_port = add.output_ports[0]
+        out_port.register_callback(lambda x: print(x))
+        out_port.register_callback(assert_res)
+        await add(1, 2)
+        await flow.session.join()
