@@ -8,6 +8,7 @@ from .node_port import (
 
 if T.TYPE_CHECKING:
     from .session import Session
+    from executor.engine.manager import Jobs
 
 
 class Flow(SunmaoObj):
@@ -100,8 +101,36 @@ class Flow(SunmaoObj):
             new_src_port.connect_with(new_dst_port)
         return flow
 
+    async def join(
+            self,
+            timeout: T.Optional[float] = None,
+            time_delta: float = 0.01) -> None:
+        """Join the flow."""
+        engine = self.session.engine
+
+        def select_func(jobs: "Jobs"):
+            jobs_for_wait = []
+            for node in self.nodes.values():
+                for job_id in node.jobs_id:
+                    job = jobs.get_job_by_id(job_id)
+                    if (job.status == "running") or (job.status == "pending"):
+                        jobs_for_wait.append(job)
+            return jobs_for_wait
+
+        await engine.wait_async(
+            timeout=timeout,
+            time_delta=time_delta,
+            select_jobs=select_func,
+        )
+
     async def __call__(self, inputs: dict) -> dict:
-        """Intreface for execute the flow."""
+        """Intreface for execute the flow.
+
+        Args:
+            inputs: The input data for the flow.
+                It should be a dict, with the key is the name of the input
+                port, and the value is the data.
+        """
         free_input_nodes: T.Set[Node] = set()
         for in_port in self.free_input_ports:
             if isinstance(in_port, InputDataPort):
@@ -120,7 +149,7 @@ class Flow(SunmaoObj):
             free_input_nodes.add(in_port.node)
         for node in free_input_nodes:
             await node.activate()
-        await self.session.join()
+        await self.join()
         res = {}
         for out_port in self.free_output_ports:
             key = f"{out_port.node.name}.{out_port.name}"
