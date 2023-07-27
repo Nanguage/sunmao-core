@@ -2,6 +2,7 @@ import typing as T
 from datetime import datetime
 from collections import deque
 from funcdesc.desc import Value
+from funcdesc.desc import NotDef
 
 from .connection import Connection
 
@@ -212,11 +213,14 @@ class Port:
 
     @classmethod
     def from_val_desc(cls, val_desc: "Value") -> "Port":
+        default = val_desc.default
+        if default is NotDef:
+            default = None
         port = cls(
             name=val_desc.name,
             type=val_desc.type,
             range=val_desc.range,
-            default=val_desc.default,
+            default=default,
             **val_desc.kwargs,
         )
         return port

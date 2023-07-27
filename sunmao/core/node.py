@@ -1,6 +1,7 @@
 import typing as T
 
 from executor.engine.job import Job
+from funcdesc import Description
 
 from .base import FlowElement
 from .node_port import (
@@ -256,6 +257,7 @@ class ComputeNode(Node):
 
     default_job_type: JOB_TYPES = "thread"
     job_type = JobType()
+    func_desc: Description
 
     def __init__(
             self,
