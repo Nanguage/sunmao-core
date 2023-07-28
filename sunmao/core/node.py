@@ -9,6 +9,7 @@ from .node_port import (
     InputDataPort, InputExecPort,
     OutputDataPort, OutputExecPort,
 )
+from .connection import Connection
 from .utils import CheckAttrRange, job_type_classes, JOB_TYPES
 from .utils import logger
 
@@ -70,6 +71,15 @@ class Node(FlowElement):
         self.jobs_id: T.List[str] = []
         self.attrs = kwargs
 
+    @property
+    def connections(self) -> T.List["Connection"]:
+        conns = []
+        for port in self.input_ports:
+            conns.extend(port.connections)
+        for port in self.output_ports:
+            conns.extend(port.connections)
+        return conns
+
     def copy(self, name: T.Optional[str] = None) -> "Node":
         """Return a copy of the node."""
         new_name = self.name if name is None else name
@@ -88,6 +98,8 @@ class Node(FlowElement):
         return name
 
     def __repr__(self) -> str:
+        if self.name is not None:
+            return f"<Node type={self.__class__.__name__} name={self.name}>"
         return f"<Node type={self.__class__.__name__} id={self.id}>"
 
     def setup_ports(self):
@@ -274,6 +286,11 @@ class ComputeNode(Node):
         return node
 
     def __repr__(self) -> str:
+        if self.name is not None:
+            return (
+                f"<ComputeNode type={self.__class__.__name__} "
+                f"name={self.name}>"
+            )
         return f"<ComputeNode type={self.__class__.__name__} id={self.id}>"
 
     @staticmethod
