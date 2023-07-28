@@ -54,7 +54,8 @@ class Flow(SunmaoObj):
             for conn in list(obj.connections):
                 self.remove_obj(conn)
         elif isinstance(obj, Connection):
-            self.connections.pop(obj.id)
+            conn = self.connections.pop(obj.id)
+            conn.source.disconnect(conn.target)
         else:
             assert isinstance(obj, FlowElement)
             self.other_objs.pop(obj.id)
